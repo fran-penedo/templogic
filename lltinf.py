@@ -43,6 +43,10 @@ class DTree(object):
 
 
 def lltinf(signals):
+    # Stopping condition
+    if stop_inference(signals):
+        return None
+
     # Find primitive using impurity measure
     primitive = find_best_primitive(signals)
 
@@ -60,3 +64,14 @@ def lltinf(signals):
     tree.right = lltinf(unsat)
 
     return tree
+
+
+def stop_inference(signals):
+    stopping_conditions = [
+        perfect_stop
+    ]
+
+    return any([stop(signals) for stop in stopping_conditions])
+
+def perfect_stop(signals):
+    return length(signals) == 0
