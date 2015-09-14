@@ -1,4 +1,6 @@
 from itertools import groupby
+from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
+
 
 class DTree(object):
 
@@ -48,7 +50,8 @@ def lltinf(signals):
         return None
 
     # Find primitive using impurity measure
-    primitive = find_best_primitive(signals)
+    primitives = make_llt_primitives(signals)
+    primitive = find_best_primitive(signals, primitives)
 
     # Classify using best primitive
     tree = DTree(primitive, signals)
@@ -75,3 +78,53 @@ def stop_inference(signals):
 
 def perfect_stop(signals):
     return length(signals) == 0
+
+class SimpleSignal(Signal):
+
+    def __init__(self, index=0, op=LE, pi=0):
+        self._index = index
+        self._op = op
+        self._pi = pi
+
+        self._labels = lambda t: [self._index, t]
+        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
+
+    @property
+    def pi(self):
+        return self._pi
+
+    @pi.setter
+    def pi(self, value):
+        self._pi = value
+
+def make_llt_primitives(signals):
+    alw_ev = [
+        Formula(ALWAYS, [
+            Formula(EVENTUALLY, [
+                Formula(EXPR, [
+                    SimpleSignal(index, op)
+                ])
+            ])
+        ])
+        for index, op
+        in itertools.product(range(length(signals[0] - 1), [LE, GT]))
+    ]
+    ev_alw = [
+        Formula(EVENTUALLY, [
+            Formula(ALWAYS, [
+                Formula(EXPR, [
+                    SimpleSignal(index, op)
+                ])
+            ])
+        ])
+        for index, op
+        in itertools.product(range(length(signals[0] - 1), [LE, GT]))
+    ]
+
+    return alw_ev + ev_alw
+
+def set_llt_pars(primitive, t0, t1, t3, pi):
+    primitive.bounds = [t0, t1]
+    primitive.args[0].bounds = [0, t3]
+    primitives.args[0].args[0].pi = pi
+

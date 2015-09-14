@@ -1,3 +1,4 @@
+import operator
 
 # Operator constants
 EXPR = 0
@@ -8,16 +9,18 @@ NEXT = 4
 ALWAYS = 5
 EVENTUALLY = 6
 
+LE = operator.le
+GT = operator.gt
+
 
 class Signal(object):
 
-    def __init__(self, labels, f, bounds=None):
+    def __init__(self, labels, f):
         self._labels = labels
         self._f = f
-        self.bounds = bounds
 
     def signal(self, model, t):
-        vs = map(lambda l: model.getVarByName(l(t)), self._labels)
+        vs = [model.getVarByName(l(t)) for l in self._labels]
         if any(var is None for var in vs):
             return None
         else:
