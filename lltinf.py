@@ -1,5 +1,5 @@
 from itertools import groupby
-from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
+from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR, AND, OR, NOT
 
 
 class DTree(object):
@@ -17,6 +17,18 @@ class DTree(object):
             return self.left.classify(signal)
         else:
             return self.right.classify(signal)
+
+    def get_formula(self):
+        return Formula(OR, [
+            Formula(AND, [
+                self.primitive,
+                self.left.get_formula()
+            ]),
+            Formula(AND, [
+                Formula(NOT, [self.primitive]),
+                self.right
+            ])
+        ])
 
     @property
     def left(self):
