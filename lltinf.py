@@ -66,10 +66,10 @@ class DTree(object):
         self._robustness = value
 
 
-
-def lltinf(signals, robustness=None):
+# Main inference function
+def lltinf(signals, robustness=None, depth=1):
     # Stopping condition
-    if stop_inference(signals):
+    if stop_inference(signals, depth):
         return None
 
     # Find primitive using impurity measure
@@ -87,21 +87,24 @@ def lltinf(signals, robustness=None):
     unsat = zip(*list(grouped[False]))[1]
 
     # Recursively build the tree
-    tree.left = lltinf(sat)
-    tree.right = lltinf(unsat)
+    tree.left = lltinf(sat, depth - 1)
+    tree.right = lltinf(unsat, depth - 1)
 
     return tree
 
 
-def stop_inference(signals):
+def stop_inference(signals, depth):
     stopping_conditions = [
         perfect_stop
     ]
 
-    return any([stop(signals) for stop in stopping_conditions])
+    return any([stop(signals, depth) for stop in stopping_conditions])
 
-def perfect_stop(signals):
+def perfect_stop(signals, depth):
     return length(signals) == 0
+
+def depth_stop(signals, depth):
+    return depth <= 0
 
 class LLTSignal(Signal):
 
