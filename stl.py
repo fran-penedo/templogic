@@ -104,3 +104,6 @@ def robustness(formula, model, t=0):
             lambda j: robustness(formula.args[0], model, t + j),
             range(formula.bounds[0], formula.bounds[1] + 1)))
     }[formula.op]()
+
+def satisfies(formula, model, t=0):
+    return robustness(formula, model, t) >= 0
