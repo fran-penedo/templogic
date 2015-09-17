@@ -1,4 +1,5 @@
 import operator
+import copy
 
 # Operator constants
 EXPR = 0
@@ -29,9 +30,11 @@ class Signal(object):
 
 class Formula(object):
 
-    def __init__(self, operator, args, bounds=[0, 0]):
+    def __init__(self, operator, args, bounds=None):
         self._op = operator
         self._args = args
+        if bounds is None:
+            bounds = [0, 0]
         self._bounds = bounds
 
     def _hexpr(self):
@@ -66,6 +69,9 @@ class Formula(object):
             EVENTUALLY: self._heventually
         }[self.op]()
 
+    def copy(self):
+        return copy.deepcopy(self)
+
     @property
     def op(self):
         return self._op
@@ -89,6 +95,24 @@ class Formula(object):
     @bounds.setter
     def bounds(self, value):
         self._bounds = value
+
+    def __str__(self):
+        return {
+            EXPR: "(%s)" % str(self.args[0]),
+            NOT: "~ %s" % str(self.args[0]),
+            AND: " ^ ".join([str(arg) for arg in self.args]),
+            OR: " v ".join([str(arg) for arg in self.args]),
+            NEXT: "O%s" % str(self.args[0]),
+            ALWAYS: "G_[%.2f, %.2f] %s" % \
+                (self.bounds[0], self.bounds[1], str(self.args[0])),
+            EVENTUALLY: "F_[%.2f, %.2f] %s" % \
+                (self.bounds[0], self.bounds[1], str(self.args[0]))
+        }[self.op]
+
+    def __repr__(self):
+        return self.__str__()
+
+
 
 def robustness(formula, model, t=0):
     return {

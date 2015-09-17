@@ -1,6 +1,7 @@
 from itertools import groupby
-from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR, AND, OR, NOT
-from scipy import optimize
+from stl import Formula, AND, OR, NOT
+from impurity import optimize_inf_gain
+from llt import make_llt_primitives
 
 
 class DTree(object):
@@ -67,14 +68,16 @@ class DTree(object):
 
 
 # Main inference function
-def lltinf(signals, robustness=None, depth=1):
+def lltinf(signals, robustness=None, depth=1,
+           optimize_impurity=optimize_inf_gain):
     # Stopping condition
     if stop_inference(signals, depth):
         return None
 
     # Find primitive using impurity measure
     primitives = make_llt_primitives(signals)
-    primitive, impurity = find_best_primitive(signals, primitives, robustness)
+    primitive, impurity = find_best_primitive(signals, primitives, robustness,
+                                              optimize_impurity)
 
     # Classify using best primitive
     # TODO add robustness
@@ -101,111 +104,14 @@ def stop_inference(signals, depth):
     return any([stop(signals, depth) for stop in stopping_conditions])
 
 def perfect_stop(signals, depth):
-    return length(signals) == 0
+    return len(signals) == 0
 
 def depth_stop(signals, depth):
     return depth <= 0
-
-class LLTSignal(Signal):
-
-    """Definition of a signal in LLT: x_j ~ pi, where ~ is <= or >"""
-
-    def __init__(self, index=0, op=LE, pi=0):
-        self._index = index
-        self._op = op
-        self._pi = pi
-
-        self._labels = lambda t: [self._index, t]
-        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
-
-    @property
-    def pi(self):
-        return self._pi
-
-    @pi.setter
-    def pi(self, value):
-        self._pi = value
-
-    @property
-    def index(self):
-        return self._index
-
-    @index.setter
-    def index(self, value):
-        self._index = value
-
-
-class SimpleModel(object):
-
-    """Matrix-like model"""
-
-    def __init__(self, signals):
-        self._signals = signals
-
-    def getVarByName(self, indices):
-        return self._signals[indices[0]][indices[1]]
-
-
-def make_llt_primitives(signals):
-    alw_ev = [
-        Formula(ALWAYS, [
-            Formula(EVENTUALLY, [
-                Formula(EXPR, [
-                    SimpleSignal(index, op)
-                ])
-            ])
-        ])
-        for index, op
-        in itertools.product(range(length(signals[0] - 1), [LE, GT]))
-    ]
-    ev_alw = [
-        Formula(EVENTUALLY, [
-            Formula(ALWAYS, [
-                Formula(EXPR, [
-                    SimpleSignal(index, op)
-                ])
-            ])
-        ])
-        for index, op
-        in itertools.product(range(length(signals[0] - 1), [LE, GT]))
-    ]
-
-    return alw_ev + ev_alw
-
-def set_llt_pars(primitive, t0, t1, t3, pi):
-    primitive.bounds = [t0, t1]
-    primitive.args[0].bounds = [0, t3]
-    primitives.args[0].args[0].pi = pi
 
 def find_best_primitive(signals, primitives, robustness):
     # Parameters will be set for the copy of the primitive
     opt_prims = [optimize_impurity(signals, primitive.copy(), robustness)
                  for primitive in primitives]
     return max(opt_prims, key=lambda x: x[1])
-
-optimize_purity = optimize_inf_gain
-
-def optimize_inf_gain(signals, primitive, robustness):
-    # [t0, t1, t3, pi]
-    maxt = max(signals[-1])
-    theta0 = [0, 0, 0, 0]
-    lower = [0, 0, 0, min(signals[primitive.index])]
-    upper = [maxt, maxt, maxt, min(signals[primitive.index])]
-    args = [primitive, signals, robustness]
-
-    res = optimize.anneal(inf_gain, theta0, args=args, lower=lower, upper=upper)
-    return primitive, res[1]
-
-def inf_gain(theta, *args):
-    primitive = args[0]
-    signals = args[1]
-    # May be None, TODO check. Can't do it up in the stack
-    robustness = args[2]
-
-    set_llt_pars(primitive, theta[0], theta[1], theta[2], theta[3])
-
-    # TODO use actual function
-    return - theta[0] - theta[1] - theta[2] - theta[3] - primitive.index
-
-
 
