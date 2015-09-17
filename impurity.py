@@ -30,14 +30,13 @@ def optimize_inf_gain_skel(signals, primitive, robustness):
     maxt = max(np.amax(signals[:,-1], 1))
     lower = [0, 0, 0, min(np.amin(signals[:, primitive.index], 1))]
     upper = [maxt, maxt, maxt, max(np.amax(signals[:, primitive.index], 1))]
-    args = [primitive, signals, robustness]
+    args = (primitive, signals, robustness)
 
     res = optimize.differential_evolution(inf_gain_skel, bounds=zip(lower, upper),
                                           args=args)
-    return primitive, res[1]
+    return primitive, res.x
 
 def inf_gain_skel(theta, *args):
-    print args
     primitive = args[0]
     signals = args[1]
     # May be None, TODO check. Can't do it up in the stack
