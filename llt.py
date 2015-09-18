@@ -137,3 +137,15 @@ def make_llt_primitives(signals):
 
     return alw_ev + ev_alw
 
+def split_groups(l, group):
+    grouped = itertools.groupby(
+        sorted(zip(l, [group(x) for x in l])), lambda x: x[1])
+    grouped_dict = {}
+    for k, g in grouped:
+        grouped_dict[k] = list(g)
+
+    p = zip(*list(grouped_dict[True]))[0]
+    n = zip(*list(grouped_dict[False]))[0]
+    return p, n
+
+

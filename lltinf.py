@@ -2,16 +2,35 @@ from itertools import groupby
 from stl import Formula, AND, OR, NOT
 from impurity import optimize_inf_gain
 from llt import make_llt_primitives
+import numpy as np
+
+class Traces(object):
+
+    def __init__(self, signals, labels):
+        self._signals = np.array(signals)
+        self._labels = labels
+
+    @property
+    def labels(self):
+        return self._labels
+
+    @property
+    def signals(self):
+        return self._signals
+
+    def get_sindex(self, i):
+        return self.signals[:, i]
+
 
 
 class DTree(object):
 
     """Decission tree recursive structure"""
 
-    def __init__(self, primitive, signals, robustness=None,
+    def __init__(self, primitive, traces, robustness=None,
                  left=None, right=None):
         self._primitive = primitive
-        self._signals = signals
+        self._traces = traces
         self._robustness = robustness
         self._left = left
         self._right = right
@@ -68,27 +87,23 @@ class DTree(object):
 
 
 # Main inference function
-# signals = [(signal, label)], signal in np.array
-def lltinf(signals, rho=None, depth=1,
+# traces = [(signal, label)], signal in np.array
+def lltinf(traces, rho=None, depth=1,
            optimize_impurity=optimize_inf_gain):
     # Stopping condition
-    if stop_inference(signals, depth):
+    if stop_inference(traces, depth):
         return None
 
     # Find primitive using impurity measure
-    primitives = make_llt_primitives(signals)
-    primitive, impurity = find_best_primitive(signals, primitives, rho,
+    primitives = make_llt_primitives(traces.signals)
+    primitive, impurity = find_best_primitive(traces, primitives, rho,
                                               optimize_impurity)
 
-    # Classify using best primitive
+    # Classify using best primitive and split into groups
     # TODO add robustness
-    tree = DTree(primitive, signals)
-    classified = [(tree.classify(s[0]), s) for s in signals]
+    tree = DTree(primitive, traces)
+    sat, unsat = split_groups(s, lambda x: tree.classify(x[0]))
 
-    # Split into groups
-    grouped = dict(groupby(sorted(classified), lambda x: x[0]))
-    sat = zip(*list(grouped[True]))[1]
-    unsat = zip(*list(grouped[False]))[1]
     rho_prim = [robustness(primitive, model) for model in models]
     rho_sat = rho_prim
     rho_unsat = - rho_prim
@@ -103,22 +118,22 @@ def lltinf(signals, rho=None, depth=1,
     return tree
 
 
-def stop_inference(signals, depth):
+def stop_inference(traces, depth):
     stopping_conditions = [
         perfect_stop
     ]
 
-    return any([stop(signals, depth) for stop in stopping_conditions])
+    return any([stop(traces, depth) for stop in stopping_conditions])
 
-def perfect_stop(signals, depth):
-    return len(signals) == 0
+def perfect_stop(traces, depth):
+    return len(traces.signals) == 0
 
-def depth_stop(signals, depth):
+def depth_stop(traces, depth):
     return depth <= 0
 
-def find_best_primitive(signals, primitives, robustness):
+def find_best_primitive(traces, primitives, robustness):
     # Parameters will be set for the copy of the primitive
-    opt_prims = [optimize_impurity(signals, primitive.copy(), robustness)
+    opt_prims = [optimize_impurity(traces, primitive.copy(), robustness)
                  for primitive in primitives]
     return max(opt_prims, key=lambda x: x[1])
 
