@@ -68,7 +68,8 @@ class DTree(object):
 
 
 # Main inference function
-def lltinf(signals, robustness=None, depth=1,
+# signals = [(signal, label)], signal in np.array
+def lltinf(signals, rho=None, depth=1,
            optimize_impurity=optimize_inf_gain):
     # Stopping condition
     if stop_inference(signals, depth):
@@ -76,7 +77,7 @@ def lltinf(signals, robustness=None, depth=1,
 
     # Find primitive using impurity measure
     primitives = make_llt_primitives(signals)
-    primitive, impurity = find_best_primitive(signals, primitives, robustness,
+    primitive, impurity = find_best_primitive(signals, primitives, rho,
                                               optimize_impurity)
 
     # Classify using best primitive
@@ -88,10 +89,16 @@ def lltinf(signals, robustness=None, depth=1,
     grouped = dict(groupby(sorted(classified), lambda x: x[0]))
     sat = zip(*list(grouped[True]))[1]
     unsat = zip(*list(grouped[False]))[1]
+    rho_prim = [robustness(primitive, model) for model in models]
+    rho_sat = rho_prim
+    rho_unsat = - rho_prim
+    if rho is not None:
+        rho_sat, rho_unsat = [np.amin([prev_rho[:,primitive.index], r], 1)
+                              for r in [rho_sat, rho_unsat]]
 
     # Recursively build the tree
-    tree.left = lltinf(sat, depth - 1)
-    tree.right = lltinf(unsat, depth - 1)
+    tree.left = lltinf(sat, rho_sat, depth - 1, optimize_impurity)
+    tree.right = lltinf(unsat, rho_unsat, depth - 1, optimize_impurity)
 
     return tree
 

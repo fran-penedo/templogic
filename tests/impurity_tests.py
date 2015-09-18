@@ -11,13 +11,6 @@ def opt_inf_gain_skel_test():
     primitive = make_llt_primitives(signals)[0]
     robustness = None
 
-    print optimize_inf_gain_skel(signals, primitive, robustness)
-
-
-
-
-
-
-
-
-
+    np.testing.assert_almost_equal(
+        optimize_inf_gain_skel(signals, primitive, robustness)[1],
+        -16, 2)

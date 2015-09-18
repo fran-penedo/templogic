@@ -111,6 +111,7 @@ def set_llt_pars(primitive, t0, t1, t3, pi):
     primitive.t3 = t3
     primitive.pi = pi
 
+
 class SimpleModel(object):
 
     """Matrix-like model"""
