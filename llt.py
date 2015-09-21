@@ -121,7 +121,6 @@ class SimpleModel(object):
         self._signals = signals
 
     def getVarByName(self, indices):
-        # FIXME transform time to index
         return self._signals[indices[0]][bisect_left(
             self._signals[-1], indices[1])]
 
@@ -141,14 +140,6 @@ def make_llt_primitives(signals):
     return alw_ev + ev_alw
 
 def split_groups(l, group):
-    grouped = itertools.groupby(
-        sorted(zip(l, [group(x) for x in l])), lambda x: x[1])
-    grouped_dict = {}
-    for k, g in grouped:
-        grouped_dict[k] = list(g)
-
-    p = zip(*list(grouped_dict[True]))[0]
-    n = zip(*list(grouped_dict[False]))[0]
+    p = [x for x in l if group(x)]
+    n = [x for x in l if not group(x)]
     return p, n
-
-

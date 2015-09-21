@@ -1,5 +1,6 @@
 import operator
 import copy
+import numpy as np
 
 # Operator constants
 EXPR = 0
@@ -123,10 +124,10 @@ def robustness(formula, model, t=0):
         NEXT: lambda: robustness(formula.args[0], model, t + 1),
         ALWAYS: lambda: min(map(
             lambda j: robustness(formula.args[0], model, t + j),
-            range(formula.bounds[0], formula.bounds[1] + 1))),
+            np.arange(formula.bounds[0], formula.bounds[1] + 1))),
         EVENTUALLY: lambda: max(map(
             lambda j: robustness(formula.args[0], model, t + j),
-            range(formula.bounds[0], formula.bounds[1] + 1)))
+            np.arange(formula.bounds[0], formula.bounds[1] + 1)))
     }[formula.op]()
 
 def satisfies(formula, model, t=0):
