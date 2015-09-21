@@ -11,7 +11,7 @@ class LLTSignal(Signal):
         self._op = op
         self._pi = pi
 
-        self._labels = lambda t: [self._index, t]
+        self._labels = [lambda t: [self._index, t]]
         self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
 
     def __deepcopy__(self, memo):
@@ -120,6 +120,7 @@ class SimpleModel(object):
         self._signals = signals
 
     def getVarByName(self, indices):
+        # FIXME transform time to index
         return self._signals[indices[0]][indices[1]]
 
 

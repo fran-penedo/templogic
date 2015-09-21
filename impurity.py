@@ -1,5 +1,6 @@
 from scipy import optimize
 from llt import set_llt_pars, SimpleModel, split_groups
+from stl import robustness
 import numpy as np
 import math
 
@@ -26,8 +27,10 @@ def inf_gain(theta, *args):
 
     set_llt_pars(primitive, theta[0], theta[1], theta[2], theta[3])
 
-    rho = np.amin([prev_rho[:,primitive.index], [robustness(primitive, model)
-                              for model in models]], 1)
+    lrho = [[robustness(primitive, model) for model in models]]
+    if prev_rho is not None:
+        lrho.append(prev_rho)
+    rho = np.amin(lrho, 1)
     sat, unsat = split_groups(zip(rho, traces.labels), lambda x: x[0]>= 0)
 
     # compute IG
