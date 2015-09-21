@@ -1,6 +1,7 @@
 from scipy import optimize
 from llt import set_llt_pars, SimpleModel, split_groups
 import numpy as np
+import math
 
 
 def optimize_inf_gain(traces, primitive, rho):
@@ -40,15 +41,14 @@ def inweights(part, stotal):
     return sum(abs(part)) / stotal
 
 def entropy(part):
+    if len(part) == 0:
+        # FIXME
+        pass
+
     spart = sum(abs(part[0]))
     w_p = sum([p for p in part[1] if p >= 0]) / spart
     w_n = - sum([p for p in part[1] if p < 0]) / spart
-    return - w_p * math.log(w_p)
-
-
-
-
-
+    return - w_p * math.log(w_p) - w_n * math.log(w_n)
 
 def optimize_inf_gain_skel(traces, primitive, rho):
     # [t0, t1, t3, pi]
