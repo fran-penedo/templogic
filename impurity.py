@@ -30,28 +30,33 @@ def inf_gain(theta, *args):
     lrho = [[robustness(primitive, model) for model in models]]
     if prev_rho is not None:
         lrho.append(prev_rho)
-    rho = np.amin(lrho, 1)
+    rho = np.amin(lrho, 0)
     sat, unsat = split_groups(zip(rho, traces.labels), lambda x: x[0]>= 0)
+    sat = zip(*sat)
+    unsat = zip(*unsat)
 
     # compute IG
-    stotal = sum(abs(rho[0]))
-    ig = entropy(rho) - inweights(sat, stotal) * entropy(sat) - \
-        inweights(unsat, stotal) * entropy(unsat)
+    stotal = sum(np.abs(rho))
+    ig = entropy(traces.labels) - inweights(sat[0], stotal) * entropy(sat[1]) - \
+        inweights(unsat[0], stotal) * entropy(unsat[1])
 
     return ig
 
 def inweights(part, stotal):
-    return sum(abs(part)) / stotal
+    return sum(np.abs(part)) / stotal
 
 def entropy(part):
     if len(part) == 0:
         # FIXME
         pass
 
-    spart = sum(abs(part[0]))
-    w_p = sum([p for p in part[1] if p >= 0]) / spart
-    w_n = - sum([p for p in part[1] if p < 0]) / spart
-    return - w_p * math.log(w_p) - w_n * math.log(w_n)
+    spart = float(sum(np.abs(part)))
+    w_p = sum([p for p in part if p >= 0]) / spart
+    w_n = - sum([p for p in part if p < 0]) / spart
+    if w_p == 0 or w_n == 0:
+        return 0
+    else:
+        return - w_p * math.log(w_p) - w_n * math.log(w_n)
 
 def optimize_inf_gain_skel(traces, primitive, rho):
     # [t0, t1, t3, pi]

@@ -7,7 +7,7 @@ import numpy as np
 class Traces(object):
 
     def __init__(self, signals, labels):
-        self._signals = np.array(signals)
+        self._signals = np.array(signals, dtype=float)
         self._labels = labels
 
     @property
@@ -37,9 +37,15 @@ class DTree(object):
 
     def classify(self, signal):
         if satisfies(self.primitive, SimpleModel(signal)):
-            return self.left.classify(signal)
+            if self.left is None:
+                return 1
+            else:
+                return self.left.classify(signal)
         else:
-            return self.right.classify(signal)
+            if self.right is None:
+                return -1
+            else:
+                return self.right.classify(signal)
 
     def get_formula(self):
         return Formula(OR, [
@@ -91,6 +97,7 @@ class DTree(object):
 def lltinf(traces, rho=None, depth=1,
            optimize_impurity=optimize_inf_gain):
     # Stopping condition
+    # TODO use dictionary so functions can easily add parameters
     if stop_inference(traces, depth):
         return None
 
@@ -131,7 +138,7 @@ def perfect_stop(traces, depth):
 def depth_stop(traces, depth):
     return depth <= 0
 
-def find_best_primitive(traces, primitives, robustness):
+def find_best_primitive(traces, primitives, robustness, optimize_impurity):
     # Parameters will be set for the copy of the primitive
     opt_prims = [optimize_impurity(traces, primitive.copy(), robustness)
                  for primitive in primitives]

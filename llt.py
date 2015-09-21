@@ -1,5 +1,6 @@
 from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
+from bisect import bisect_left
 
 
 class LLTSignal(Signal):
@@ -121,7 +122,8 @@ class SimpleModel(object):
 
     def getVarByName(self, indices):
         # FIXME transform time to index
-        return self._signals[indices[0]][indices[1]]
+        return self._signals[indices[0]][bisect_left(
+            self._signals[-1], indices[1])]
 
 
 def make_llt_primitives(signals):
