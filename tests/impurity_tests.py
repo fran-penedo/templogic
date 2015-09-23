@@ -25,6 +25,7 @@ def opt_inf_gain_test():
     models = [SimpleModel(signal) for signal in traces.signals]
     primitive = LLTFormula(True, 1, LE)
     rho = None
+    maxt = 4
 
-    print inf_gain([1, 4, 0, 4.5], primitive, models, rho, traces)
+    print inf_gain([1, 4, 0, 4.5], primitive, models, rho, traces, maxt)
 

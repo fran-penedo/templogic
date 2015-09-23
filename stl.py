@@ -115,19 +115,24 @@ class Formula(object):
 
 
 
+# FIXME used fixed time intervals
 def robustness(formula, model, t=0):
     return {
         EXPR: lambda: formula.args[0].signal(model, t),
         NOT: lambda: -robustness(formula.args[0], model, t),
         AND: lambda: min(map(lambda f: robustness(f, model, t), formula.args)),
         OR: lambda: max(map(lambda f: robustness(f, model, t), formula.args)),
-        NEXT: lambda: robustness(formula.args[0], model, t + 1),
+        NEXT: lambda: robustness(formula.args[0], model, t + model.tinter),
         ALWAYS: lambda: min(map(
             lambda j: robustness(formula.args[0], model, t + j),
-            np.arange(formula.bounds[0], formula.bounds[1] + 1))),
+            np.arange(formula.bounds[0],
+                      formula.bounds[1] + model.tinter,
+                      model.tinter))),
         EVENTUALLY: lambda: max(map(
             lambda j: robustness(formula.args[0], model, t + j),
-            np.arange(formula.bounds[0], formula.bounds[1] + 1)))
+            np.arange(formula.bounds[0],
+                      formula.bounds[1] + model.tinter,
+                      model.tinter)))
     }[formula.op]()
 
 def satisfies(formula, model, t=0):

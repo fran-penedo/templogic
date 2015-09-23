@@ -1,14 +1,14 @@
 from itertools import groupby
-from stl import Formula, AND, OR, NOT
+from stl import Formula, AND, OR, NOT, satisfies, robustness
 from impurity import optimize_inf_gain
-from llt import make_llt_primitives
+from llt import make_llt_primitives, split_groups, SimpleModel
 import numpy as np
 
 class Traces(object):
 
-    def __init__(self, signals, labels):
-        self._signals = np.array(signals, dtype=float)
-        self._labels = labels
+    def __init__(self, signals=None, labels=None):
+        self._signals = [] if signals is None else np.array(signals, dtype=float)
+        self._labels = [] if labels is None else labels
 
     @property
     def labels(self):
@@ -18,9 +18,12 @@ class Traces(object):
     def signals(self):
         return self._signals
 
+
     def get_sindex(self, i):
         return self.signals[:, i]
 
+    def as_list(self):
+        return [self.signals, self.labels]
 
 
 class DTree(object):
@@ -96,6 +99,7 @@ class DTree(object):
 # traces = [(signal, label)], signal in np.array
 def lltinf(traces, rho=None, depth=1,
            optimize_impurity=optimize_inf_gain):
+    np.seterr(all='ignore')
     # Stopping condition
     # TODO use dictionary so functions can easily add parameters
     if stop_inference(traces, depth):
@@ -107,16 +111,21 @@ def lltinf(traces, rho=None, depth=1,
                                               optimize_impurity)
 
     # Classify using best primitive and split into groups
-    # TODO add robustness
     tree = DTree(primitive, traces)
-    sat, unsat = split_groups(s, lambda x: tree.classify(x[0]))
+    prim_rho = [robustness(primitive, SimpleModel(s)) for s in traces.signals]
+    if rho is None:
+        rho = [np.inf for i in traces.labels]
+    sat_, unsat_ = split_groups(zip(prim_rho, rho, traces.as_list()),
+        lambda x: x[0] >= 0)
 
-    rho_prim = [robustness(primitive, model) for model in models]
-    rho_sat = rho_prim
-    rho_unsat = - rho_prim
-    if rho is not None:
-        rho_sat, rho_unsat = [np.amin([prev_rho[:,primitive.index], r], 1)
-                              for r in [rho_sat, rho_unsat]]
+    # No further classification possible
+    if len(sat_) == 0 or len(unsat_) == 0:
+        return None
+
+    # Redo data structures
+    sat, unsat = [(Traces(*group[2:]),
+                   np.amin([np.abs(group[0]), group[1][:,primitive.index]], 1))
+                   for group in [zip(*sat), zip(*unsat)]]
 
     # Recursively build the tree
     tree.left = lltinf(sat, rho_sat, depth - 1, optimize_impurity)

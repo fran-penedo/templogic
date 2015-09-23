@@ -119,10 +119,18 @@ class SimpleModel(object):
 
     def __init__(self, signals):
         self._signals = signals
+        self._tinter = signals[-1][1] - signals[-1][0]
 
     def getVarByName(self, indices):
-        return self._signals[indices[0]][bisect_left(
-            self._signals[-1], indices[1])]
+        tindex = max(min(
+            bisect_left(self._signals[-1], indices[1]),
+            len(self._signals[-1]) - 1),
+            0)
+        return self._signals[indices[0]][tindex]
+
+    @property
+    def tinter(self):
+        return self._tinter
 
 
 def make_llt_primitives(signals):
