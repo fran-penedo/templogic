@@ -1,4 +1,3 @@
-from itertools import groupby
 from stl import Formula, AND, OR, NOT, satisfies, robustness
 from impurity import optimize_inf_gain
 from llt import make_llt_primitives, split_groups, SimpleModel
@@ -96,13 +95,18 @@ class DTree(object):
 
 
 # Main inference function
-# traces = [(signal, label)], signal in np.array
 def lltinf(traces, rho=None, depth=1,
-           optimize_impurity=optimize_inf_gain):
+           optimize_impurity=optimize_inf_gain, stop_condition=None):
     np.seterr(all='ignore')
+    if stop_condition is None:
+        stop_condition = [perfect_stop]
+
+    return lltinf_(traces, rho, depth, optimize_impurity, stop_condition)
+
+def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
+    args = locals().copy()
     # Stopping condition
-    # TODO use dictionary so functions can easily add parameters
-    if stop_inference(traces, depth):
+    if any([stop(args) for stop in stop_condition]):
         return None
 
     # Find primitive using impurity measure
@@ -128,24 +132,16 @@ def lltinf(traces, rho=None, depth=1,
                    for group in [zip(*sat), zip(*unsat)]]
 
     # Recursively build the tree
-    tree.left = lltinf(sat, rho_sat, depth - 1, optimize_impurity)
-    tree.right = lltinf(unsat, rho_unsat, depth - 1, optimize_impurity)
+    tree.left = lltinf_(sat, rho_sat, depth - 1, optimize_impurity)
+    tree.right = lltinf_(unsat, rho_unsat, depth - 1, optimize_impurity)
 
     return tree
 
+def perfect_stop(kwargs):
+    return len(kwargs['traces'].signals) == 0
 
-def stop_inference(traces, depth):
-    stopping_conditions = [
-        perfect_stop
-    ]
-
-    return any([stop(traces, depth) for stop in stopping_conditions])
-
-def perfect_stop(traces, depth):
-    return len(traces.signals) == 0
-
-def depth_stop(traces, depth):
-    return depth <= 0
+def depth_stop(kwargs):
+    return kwargs['depth'] <= 0
 
 def find_best_primitive(traces, primitives, robustness, optimize_impurity):
     # Parameters will be set for the copy of the primitive
