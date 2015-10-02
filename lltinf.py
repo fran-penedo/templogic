@@ -113,13 +113,14 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
     primitives = make_llt_primitives(traces.signals)
     primitive, impurity = find_best_primitive(traces, primitives, rho,
                                               optimize_impurity)
+    print primitive
 
     # Classify using best primitive and split into groups
     tree = DTree(primitive, traces)
     prim_rho = [robustness(primitive, SimpleModel(s)) for s in traces.signals]
     if rho is None:
         rho = [np.inf for i in traces.labels]
-    sat_, unsat_ = split_groups(zip(prim_rho, rho, traces.as_list()),
+    sat_, unsat_ = split_groups(zip(prim_rho, rho, *traces.as_list()),
         lambda x: x[0] >= 0)
 
     # No further classification possible
@@ -128,17 +129,20 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
 
     # Redo data structures
     sat, unsat = [(Traces(*group[2:]),
-                   np.amin([np.abs(group[0]), group[1][:,primitive.index]], 1))
+                   np.amin([np.abs(group[0]), group[1]], 0))
                    for group in [zip(*sat_), zip(*unsat_)]]
 
     # Recursively build the tree
-    tree.left = lltinf_(sat[0], sat[1], depth - 1, optimize_impurity)
-    tree.right = lltinf_(unsat[0], unsat[1], depth - 1, optimize_impurity)
+    tree.left = lltinf_(sat[0], sat[1], depth - 1,
+                        optimize_impurity, stop_condition)
+    tree.right = lltinf_(unsat[0], unsat[1], depth - 1,
+                         optimize_impurity, stop_condition)
 
     return tree
 
 def perfect_stop(kwargs):
-    return len(kwargs['traces'].signals) == 0
+    return all([l > 0 for l in kwargs['traces'].labels]) or \
+        all([l <= 0 for l in kwargs['traces'].labels])
 
 def depth_stop(kwargs):
     return kwargs['depth'] <= 0
