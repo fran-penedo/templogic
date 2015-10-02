@@ -129,11 +129,11 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
     # Redo data structures
     sat, unsat = [(Traces(*group[2:]),
                    np.amin([np.abs(group[0]), group[1][:,primitive.index]], 1))
-                   for group in [zip(*sat), zip(*unsat)]]
+                   for group in [zip(*sat_), zip(*unsat_)]]
 
     # Recursively build the tree
-    tree.left = lltinf_(sat, rho_sat, depth - 1, optimize_impurity)
-    tree.right = lltinf_(unsat, rho_unsat, depth - 1, optimize_impurity)
+    tree.left = lltinf_(sat[0], sat[1], depth - 1, optimize_impurity)
+    tree.right = lltinf_(unsat[0], unsat[1], depth - 1, optimize_impurity)
 
     return tree
 
