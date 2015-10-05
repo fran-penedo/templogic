@@ -15,7 +15,7 @@ def optimize_inf_gain(traces, primitive, rho):
     args = (primitive, models, rho, traces, maxt)
 
     res = optimize.differential_evolution(inf_gain, bounds=zip(lower, upper),
-                                          args=args)
+                                          args=args, disp=True)
     return primitive, -res.fun
 
 def inf_gain(theta, *args):
@@ -41,6 +41,7 @@ def inf_gain(theta, *args):
     stotal = sum(np.abs(zip(*rho_labels)[0]))
     ig = entropy(rho_labels) - inweights(sat, stotal) * entropy(sat) - \
         inweights(unsat, stotal) * entropy(unsat)
+    print -ig
 
     return -ig
 
