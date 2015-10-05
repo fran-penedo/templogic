@@ -1,16 +1,18 @@
 import numpy as np
 from scipy.io import loadmat
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
+from os import path
 
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
 
+SIMPLEDS=path.join('data', 'SimpleDS', 'SimpleDS.mat')
 
 def load_traces(filename):
     ''' Loads traces' data from a matlab MAT file. The data is stores in 3
     variables called ``data'', ``labels'' and ``t'' which contain the signals'
     values for all dimensions, the class labels (-1 and 1) and the times at
     which the values are sampled.
-    ''' 
+    '''
     # load data from MAT file
     mat_data =  loadmat(filename)
     # add time dimension to signals' data
@@ -26,7 +28,7 @@ def load_traces(filename):
 
 def lltinf_simple_test():
     '''Simple case study.'''
-    traces = load_traces(r'..\Test Cases\SimpleDS\SimpleDS.mat')
+    traces = load_traces(SIMPLEDS)
     print traces.signals.shape
     print len(traces.labels)
     # run classification algorithm
@@ -40,6 +42,7 @@ def lltinf_naval_test():
     # run classification algorithm
     lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
 
+
 if __name__ == '__main__':
     lltinf_simple_test()
-    lltinf_naval_test()
+    #lltinf_naval_test()
