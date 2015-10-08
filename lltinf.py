@@ -122,6 +122,7 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
         rho = [np.inf for i in traces.labels]
     sat_, unsat_ = split_groups(zip(prim_rho, rho, *traces.as_list()),
         lambda x: x[0] >= 0)
+    # Switch sat and unsat if labels are wrong
 
     # No further classification possible
     if len(sat_) == 0 or len(unsat_) == 0:

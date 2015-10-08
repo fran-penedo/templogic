@@ -15,7 +15,8 @@ def optimize_inf_gain(traces, primitive, rho):
     args = (primitive, models, rho, traces, maxt)
 
     res = optimize.differential_evolution(inf_gain, bounds=zip(lower, upper),
-                                          args=args, disp=True)
+                                          args=args, popsize=10, maxiter=10,
+                                          mutation=0.7, disp=True)
     return primitive, -res.fun
 
 def inf_gain(theta, *args):
@@ -38,10 +39,11 @@ def inf_gain(theta, *args):
     sat, unsat = split_groups(rho_labels, lambda x: x[0]>= 0)
 
     # compute IG
+    # Sum of absolute value of the robustness for all traces
     stotal = sum(np.abs(zip(*rho_labels)[0]))
     ig = entropy(rho_labels) - inweights(sat, stotal) * entropy(sat) - \
         inweights(unsat, stotal) * entropy(unsat)
-    print -ig
+    print theta[0], theta[1], theta[2], -ig
 
     return -ig
 
@@ -54,9 +56,9 @@ def entropy(part):
     if len(part) == 0:
         return 0
 
-    spart = float(sum(np.abs(part[0])))
-    w_p = sum([p[0] for p in part if p[1] >= 0]) / spart
-    w_n = - sum([p[0] for p in part if p[1] < 0]) / spart
+    spart = float(sum(np.abs(zip(*part)[0])))
+    w_p = sum([abs(p[0]) for p in part if p[1] >= 0]) / spart
+    w_n = sum([abs(p[0]) for p in part if p[1] < 0]) / spart
     if w_p <= 0 or w_n <= 0:
         return 0
     else:
