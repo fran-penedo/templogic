@@ -23,6 +23,7 @@ class Signal(object):
 
     def signal(self, model, t):
         vs = [model.getVarByName(l(t)) for l in self._labels]
+        # TODO Get rid of any
         if any(var is None for var in vs):
             return None
         else:
