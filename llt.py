@@ -106,6 +106,10 @@ class LLTFormula(Formula):
     def t3(self, value):
         self.args[0].bounds[1] = value
 
+    def reverse_op(self):
+        op = self.args[0].args[0].args[0].op
+        self.args[0].args[0].args[0].op = LE if op == GT else GT
+
 
 def set_llt_pars(primitive, t0, t1, t3, pi):
     primitive.t0 = t0
@@ -147,12 +151,12 @@ def make_llt_primitives(signals):
     alw_ev = [
         LLTFormula(True, index, op)
         for index, op
-        in itertools.product(range(len(signals[0]) - 1), [LE, GT])
+        in itertools.product(range(len(signals[0]) - 1), [LE])
     ]
     ev_alw = [
         LLTFormula(False, index, op)
         for index, op
-        in itertools.product(range(len(signals[0]) - 1), [LE, GT])
+        in itertools.product(range(len(signals[0]) - 1), [LE])
     ]
 
     return alw_ev + ev_alw

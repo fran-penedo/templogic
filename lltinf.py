@@ -17,7 +17,6 @@ class Traces(object):
     def signals(self):
         return self._signals
 
-
     def get_sindex(self, i):
         return self.signals[:, i]
 
@@ -120,9 +119,16 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
     prim_rho = [robustness(primitive, SimpleModel(s)) for s in traces.signals]
     if rho is None:
         rho = [np.inf for i in traces.labels]
+    # [prim_rho, rho, signals, label]
     sat_, unsat_ = split_groups(zip(prim_rho, rho, *traces.as_list()),
         lambda x: x[0] >= 0)
-    # Switch sat and unsat if labels are wrong
+
+    # Switch sat and unsat if labels are wrong. No need to negate prim rho since
+    # we use it in absolute value later
+    if len([t for t in sat_ if t[3] >= 0]) < \
+        len([t for t in unsat_ if t[3] >= 0]):
+        sat_, unsat_ = unsat_, sat_
+        primitive.reverse_op()
 
     # No further classification possible
     if len(sat_) == 0 or len(unsat_) == 0:
