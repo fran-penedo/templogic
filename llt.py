@@ -1,6 +1,7 @@
 from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
-from bisect import bisect_left
+# from bisect import bisect_left
+import numpy as np
 
 
 class LLTSignal(Signal):
@@ -122,10 +123,19 @@ class SimpleModel(object):
         self._tinter = signals[-1][1] - signals[-1][0]
 
     def getVarByName(self, indices):
+        '''indices[0] represents the name of the signal
+        indices[1] represents the time at which to sample the signal
+        '''
+#         tindex = max(min(
+#             bisect_left(self._signals[-1], indices[1]),
+#             len(self._signals[-1]) - 1),
+#             0)
+        '''FIXME: Assumes that sampling rate is constant, i.e. the sampling
+        times are in arithmetic progression with rate self._tinter'''
         tindex = max(min(
-            bisect_left(self._signals[-1], indices[1]),
-            len(self._signals[-1]) - 1),
-            0)
+            np.floor(indices[1]/self._tinter), len(self._signals[-1]) - 1), 0)
+        assert 0 <= tindex <= len(self._signals[-1]), \
+               'Invalid query outside the time domain of the trace! %f' % tindex
         return self._signals[indices[0]][tindex]
 
     @property
