@@ -93,7 +93,7 @@ class ConstrainedDifferentialEvolutionSolver(object):
 
         self.func = func
         self.args = args
-        
+
         self._custom_constraint = custom_constraint
 
         # convert tuple of lower and upper bounds to limits
@@ -169,6 +169,8 @@ class ConstrainedDifferentialEvolutionSolver(object):
         """
         rng = self.random_number_generator
         self.population = rng.random_sample(self.population.shape)
+        for p in self.population:
+            self._ensure_constraint(p)
 
     @property
     def x(self):

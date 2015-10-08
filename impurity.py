@@ -1,4 +1,5 @@
 from scipy import optimize
+import optimization
 from llt import set_llt_pars, SimpleModel, split_groups
 from stl import robustness
 import numpy as np
@@ -14,10 +15,23 @@ def optimize_inf_gain(traces, primitive, rho):
     models = [SimpleModel(signal) for signal in traces.signals]
     args = (primitive, models, rho, traces, maxt)
 
-    res = optimize.differential_evolution(inf_gain, bounds=zip(lower, upper),
-                                          args=args, popsize=10, maxiter=10,
-                                          mutation=0.7, disp=True)
+    res = optimization.constrained_differential_evolution(
+        inf_gain, bounds=zip(lower, upper), custom_constraint=constrained_sample,
+        args=args, popsize=10, maxiter=10,
+        mutation=0.7, init='random', disp=True)
     return primitive, -res.fun
+
+
+def constrained_sample(theta_scaled):
+    # all in [0, 1]
+    t0, t1, t3, pi = theta_scaled
+    if t0 > t1:
+        t0, t1 = t1, t0
+    if t1 + t3 > 1:
+        t3 = 1 - t1
+
+    return [t0, t1, t3, pi]
+
 
 def inf_gain(theta, *args):
     primitive = args[0]
@@ -28,6 +42,7 @@ def inf_gain(theta, *args):
     maxt = args[4]
 
     if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
+        print 'bad'
         return np.inf
 
     set_llt_pars(primitive, theta[0], theta[1], theta[2], theta[3])
