@@ -56,7 +56,8 @@ class ConstrainedDifferentialEvolutionSolver(object):
                     'best2exp': '_best2',
                     'rand2exp': '_rand2'}
 
-    def __init__(self, func, bounds, custom_constraint=lambda x: x, args=(),
+    def __init__(self, func, bounds, custom_constraint=lambda x: x,
+                 custom_constraint_init=lambda x: x, args=(),
                  strategy='best1bin', maxiter=None, popsize=15,
                  tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=None,
                  maxfun=None, callback=None, disp=False, polish=True,
@@ -95,6 +96,7 @@ class ConstrainedDifferentialEvolutionSolver(object):
         self.args = args
 
         self._custom_constraint = custom_constraint
+        self._custom_constraint_init = custom_constraint_init
 
         # convert tuple of lower and upper bounds to limits
         # [(low_0, high_0), ..., (low_n, high_n]
@@ -161,6 +163,11 @@ class ConstrainedDifferentialEvolutionSolver(object):
         for j in range(N):
             order = rng.permutation(range(samples))
             self.population[:, j] = rdrange[order, j]
+
+        # ADDED: apply custom constraints to initialization
+        for i in range(samples):
+            self.population[i, :] = self._custom_constraint_init(
+                                                         self.population[i, :])
 
     def init_population_random(self):
         """
