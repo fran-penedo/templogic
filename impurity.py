@@ -18,7 +18,8 @@ def optimize_inf_gain(traces, primitive, rho):
     res = optimization.constrained_differential_evolution(
         inf_gain, bounds=zip(lower, upper), custom_constraint=constrained_sample,
         args=args, popsize=10, maxiter=10,
-        mutation=0.7, init='random', disp=True)
+        mutation=0.7, disp=True,
+        init='latinhypercube', custom_constraint_init=constrained_sample_init)
     return primitive, -res.fun
 
 
@@ -32,6 +33,13 @@ def constrained_sample(theta_scaled):
 
     return [t0, t1, t3, pi]
 
+def constrained_sample_init(theta_scaled):
+    # all in [0, 1]
+    t0, t1, t3, pi = theta_scaled
+    t1 = t0 + (1 - t0) * t1
+    t3 = (1-t1) * t3
+
+    return [t0, t1, t3, pi] 
 
 def inf_gain(theta, *args):
     primitive = args[0]
