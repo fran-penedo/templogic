@@ -49,16 +49,19 @@ class DTree(object):
                 return self.right.classify(signal)
 
     def get_formula(self):
-        return Formula(OR, [
-            Formula(AND, [
+        left = self.primitive
+        right = Formula(NOT, [self.primitive])
+        if self.left is not None:
+            left = Formula(AND, [
                 self.primitive,
                 self.left.get_formula()
-            ]),
-            Formula(AND, [
+            ])
+        if self.right is not None:
+            right = Formula(AND, [
                 Formula(NOT, [self.primitive]),
                 self.right
             ])
-        ])
+        return Formula(OR, [left, right])
 
     @property
     def left(self):
@@ -128,7 +131,7 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
     if len([t for t in sat_ if t[3] >= 0]) < \
         len([t for t in unsat_ if t[3] >= 0]):
         sat_, unsat_ = unsat_, sat_
-        primitive.reverse_op()
+        primitive = Formula(NOT, [primitive])
 
     # No further classification possible
     if len(sat_) == 0 or len(unsat_) == 0:

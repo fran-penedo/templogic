@@ -15,11 +15,11 @@ def optimize_inf_gain(traces, primitive, rho):
     models = [SimpleModel(signal) for signal in traces.signals]
     args = (primitive, models, rho, traces, maxt)
 
-    res = optimization.constrained_differential_evolution(
-        inf_gain, bounds=zip(lower, upper), custom_constraint=constrained_sample,
+    res = optimize.differential_evolution(
+        inf_gain, bounds=zip(lower, upper),
         args=args, popsize=10, maxiter=10,
         mutation=0.7, disp=True,
-        init='latinhypercube', custom_constraint_init=constrained_sample_init)
+        init='latinhypercube')
     return primitive, -res.fun
 
 
@@ -39,7 +39,15 @@ def constrained_sample_init(theta_scaled):
     t1 = t0 + (1 - t0) * t1
     t3 = (1-t1) * t3
 
-    return [t0, t1, t3, pi] 
+    return [t0, t1, t3, pi]
+
+def transform_pars(theta, maxt):
+    # all in [0, 1]
+    t0, t1, t3, pi = theta
+    t1 = t0 + (maxt - t0) * t1 / maxt
+    t3 = (maxt - t1) * t3 / maxt
+
+    return [t0, t1, t3, pi]
 
 def inf_gain(theta, *args):
     primitive = args[0]
@@ -48,6 +56,8 @@ def inf_gain(theta, *args):
     prev_rho = args[2]
     traces = args[3]
     maxt = args[4]
+
+    theta = transform_pars(theta, maxt)
 
     if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
         print 'bad'
