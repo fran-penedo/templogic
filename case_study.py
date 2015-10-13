@@ -2,6 +2,7 @@ import numpy as np
 from scipy.io import loadmat
 #import matplotlib.pyplot as plt
 from os import path
+import validate
 
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
 
@@ -52,6 +53,16 @@ def lltinf_naval_test():
     # run classification algorithm
     lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
 
+
+def cv_ds2(depth=3):
+    traces = load_traces(SIMPLEDS2)
+    mean, std, missrates, classifiers = \
+        validate.cross_validation(traces, lltinf_learn(depth))
+
+
+def lltinf_learn(depth):
+    return lambda data: lltinf(Traces(*zip(*data)), depth=depth,
+                               stop_condition=[perfect_stop, depth_stop])
 
 if __name__ == '__main__':
     #lltinf_simple_test()
