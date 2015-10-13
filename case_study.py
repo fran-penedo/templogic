@@ -6,6 +6,7 @@ from os import path
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
 
 SIMPLEDS=path.join('data', 'SimpleDS', 'SimpleDS.mat')
+SIMPLEDS2=path.join('data', 'SimpleDS2', 'simpleDS2.mat')
 
 def load_traces(filename):
     ''' Loads traces' data from a matlab MAT file. The data is stores in 3
@@ -34,6 +35,15 @@ def lltinf_simple_test():
     # run classification algorithm
     lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
 
+def lltinf_simple2_test():
+    '''Simple case study.'''
+    traces = load_traces(SIMPLEDS2)
+    print traces.signals.shape
+    print len(traces.labels)
+    # run classification algorithm
+    tree = lltinf(traces, depth=2, stop_condition=[perfect_stop, depth_stop])
+    print tree.get_formula()
+
 def lltinf_naval_test():
     '''Naval vessel case study.'''
     traces = load_traces(r'..\Test Cases\Naval\naval_preproc_data_online.mat')
@@ -44,5 +54,6 @@ def lltinf_naval_test():
 
 
 if __name__ == '__main__':
-    lltinf_simple_test()
+    #lltinf_simple_test()
+    lltinf_simple2_test()
     #lltinf_naval_test()
