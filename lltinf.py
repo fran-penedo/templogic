@@ -50,18 +50,20 @@ class DTree(object):
 
     def get_formula(self):
         left = self.primitive
-        right = Formula(NOT, [self.primitive])
+        right = Formula(NOT, [self.primitive]),
         if self.left is not None:
             left = Formula(AND, [
                 self.primitive,
                 self.left.get_formula()
             ])
         if self.right is not None:
-            right = Formula(AND, [
-                Formula(NOT, [self.primitive]),
-                self.right
-            ])
-        return Formula(OR, [left, right])
+            return Formula(OR, [left,
+                                Formula(AND, [
+                                    right,
+                                    self.right
+            ])])
+        else:
+            return left
 
     @property
     def left(self):
