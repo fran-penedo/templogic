@@ -57,7 +57,12 @@ def lltinf_naval_test():
 def cv_ds2(depth=3):
     traces = load_traces(SIMPLEDS2)
     mean, std, missrates, classifiers = \
-        validate.cross_validation(traces, lltinf_learn(depth))
+        validate.cross_validation(zip(*traces.as_list()), lltinf_learn(depth))
+    print "Mean: %f" % mean
+    print "Standard Deviation %f" % std
+    for i in range(len(missrates)):
+        print "Fold %d - Miss rate: %f" % (i, missrates[i])
+        print classifiers[i].get_formula()
 
 
 def lltinf_learn(depth):
@@ -66,5 +71,6 @@ def lltinf_learn(depth):
 
 if __name__ == '__main__':
     #lltinf_simple_test()
-    lltinf_simple2_test()
+    #lltinf_simple2_test()
+    cv_ds2()
     #lltinf_naval_test()

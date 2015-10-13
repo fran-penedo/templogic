@@ -76,7 +76,6 @@ def inf_gain(theta, *args):
     stotal = sum(np.abs(zip(*rho_labels)[0]))
     ig = entropy(rho_labels) - inweights(sat, stotal) * entropy(sat) - \
         inweights(unsat, stotal) * entropy(unsat)
-    print theta, -ig
 
     return -ig
 
