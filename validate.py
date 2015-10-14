@@ -18,6 +18,7 @@ def cross_validation(data, learn, k=10):
     return np.mean(missrates), np.std(missrates), missrates, classifiers
 
 def missrate(validate, classifier):
-    labels = np.array(zip(*validate)[-1])
-    test = np.array([classifier.classify(x[0]) for x in validate])
+    data, labels = zip(*validate)
+    labels = np.array(labels)
+    test = np.array([classifier.classify(x) for x in data])
     return np.count_nonzero(labels - test) / float(len(labels))
