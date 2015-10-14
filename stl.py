@@ -102,8 +102,8 @@ class Formula(object):
         return {
             EXPR: "(%s)" % str(self.args[0]),
             NOT: "~ %s" % str(self.args[0]),
-            AND: " ^ ".join([str(arg) for arg in self.args]),
-            OR: " v ".join([str(arg) for arg in self.args]),
+            AND: "(%s)" % " ^ ".join([str(arg) for arg in self.args]),
+            OR: "(%s)" % " v ".join([str(arg) for arg in self.args]),
             NEXT: "O%s" % str(self.args[0]),
             ALWAYS: "G_[%.2f, %.2f] %s" % \
                 (self.bounds[0], self.bounds[1], str(self.args[0])),
