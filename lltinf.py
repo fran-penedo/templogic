@@ -133,7 +133,7 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
     if len([t for t in sat_ if t[3] >= 0]) < \
         len([t for t in unsat_ if t[3] >= 0]):
         sat_, unsat_ = unsat_, sat_
-        primitive = Formula(NOT, [primitive])
+        tree.primitive = Formula(NOT, [tree.primitive])
 
     # No further classification possible
     if len(sat_) == 0 or len(unsat_) == 0:
