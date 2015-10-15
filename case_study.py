@@ -4,6 +4,7 @@ from scipy.io import loadmat
 from os import path
 import validate
 import argparse
+import os
 
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
 
@@ -81,4 +82,4 @@ def get_argparser():
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    cv_test(args['file'], args['depth'])
+    cv_test(path.join(os.getcwd(), args.file[0]), args.depth)
