@@ -3,6 +3,7 @@ from scipy.io import loadmat
 #import matplotlib.pyplot as plt
 from os import path
 import validate
+import argparse
 
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
 
@@ -54,8 +55,8 @@ def lltinf_naval_test():
     lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
 
 
-def cv_ds2(depth=3):
-    traces = load_traces(SIMPLEDS2)
+def cv_test(matfile, depth=3):
+    traces = load_traces(matfile)
     mean, std, missrates, classifiers = \
         validate.cross_validation(zip(*traces.as_list()), lltinf_learn(depth))
     print "Mean: %f" % mean
@@ -69,8 +70,15 @@ def lltinf_learn(depth):
     return lambda data: lltinf(Traces(*zip(*data)), depth=depth,
                                stop_condition=[perfect_stop, depth_stop])
 
+def get_argparser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('-d', '--depth', metavar='D', type=int, nargs=1,
+                        default=3, help='maximum depth of the decision tree')
+    parser.add_argument('file', nargs=1, help='.mat file containing the data')
+    return parser
+
 if __name__ == '__main__':
-    #lltinf_simple_test()
-    #lltinf_simple2_test()
-    cv_ds2()
-    #lltinf_naval_test()
+    args = get_argparser().parse_args()
+    cv_test(args['file'], args['depth'])
