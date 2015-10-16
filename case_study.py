@@ -56,10 +56,11 @@ def lltinf_naval_test():
     lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
 
 
-def cv_test(matfile, depth=3):
+def cv_test(matfile, depth=3, out_perm=None):
     traces = load_traces(matfile)
     mean, std, missrates, classifiers = \
-        validate.cross_validation(zip(*traces.as_list()), lltinf_learn(depth))
+        validate.cross_validation(zip(*traces.as_list()), lltinf_learn(depth),
+                                  save=out_perm)
     print "Mean: %f" % mean
     print "Standard Deviation %f" % std
     for i in range(len(missrates)):
@@ -78,8 +79,11 @@ def get_argparser():
     parser.add_argument('-d', '--depth', metavar='D', type=int, nargs=1,
                         default=3, help='maximum depth of the decision tree')
     parser.add_argument('file', nargs=1, help='.mat file containing the data')
+    parser.add_argument('--out-perm', metavar='f', nargs=1, default=None,
+                        help='if specified, saves the cross validation permutation into f')
     return parser
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    cv_test(path.join(os.getcwd(), args.file[0]), args.depth)
+    cv_test(path.join(os.getcwd(), args.file[0]), args.depth,
+            path.join(os.getcwd(), args.out_perm[0]))

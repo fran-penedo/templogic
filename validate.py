@@ -1,7 +1,13 @@
 import numpy as np
+import pickle
 
-def cross_validation(data, learn, k=10):
-    perm = np.random.permutation(data)
+def cross_validation(data, learn, k=10, save=None):
+    p = np.random.permutation(len(data))
+    if save is not None:
+        with open(save, 'wb') as out:
+            pickle.dump(p.tolist(), out)
+
+    perm = np.array(data)[p]
     n = len(data) / k
     folds = [perm[i * n : (i + 1) * n] for i in range(k)]
     folds[-1] = np.append(folds[-1], perm[k * n:], axis=0)
