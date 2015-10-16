@@ -89,8 +89,14 @@ def entropy(part):
         return 0
 
     spart = float(sum(np.abs(zip(*part)[0])))
-    w_p = sum([abs(p[0]) for p in part if p[1] >= 0]) / spart
-    w_n = sum([abs(p[0]) for p in part if p[1] < 0]) / spart
+    # Revert to counting when all rho = 0
+    if spart == 0:
+        w_p = len([p for p in part if p[1] >= 0]) / float(len(part))
+        w_n = len([p for p in part if p[1] < 0]) / float(len(part))
+    else:
+        w_p = sum([abs(p[0]) for p in part if p[1] >= 0]) / spart
+        w_n = sum([abs(p[0]) for p in part if p[1] < 0]) / spart
+
     if w_p <= 0 or w_n <= 0:
         return 0
     else:
