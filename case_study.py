@@ -85,5 +85,5 @@ def get_argparser():
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    cv_test(path.join(os.getcwd(), args.file[0]), args.depth,
+    cv_test(path.join(os.getcwd(), args.file[0]), args.depth[0],
             path.join(os.getcwd(), args.out_perm[0]))
