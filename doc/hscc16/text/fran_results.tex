@@ -1,0 +1,23 @@
+\subsection{Fran's results}
+\begin{algorithm}
+\caption{Tree to formula -- $Tree2STL(\cdot)$}
+\label{alg:tree2formula}
+\DontPrintSemicolon
+\KwIn{$node$ -- Starting node of a tree}
+\KwOut{Formula}
+\BlankLine
+
+\uIf{$node$ is $leaf$}{
+    \Return{$\True$}
+}
+
+$\phi \asgn$ formula associated with $node$
+
+\uIf{$node.right$ is $leaf$}{
+    \Return{$\phi \andltl Tree2STL(node.left)$}
+}\Else{
+    \Return{$(\phi \andltl Tree2STL(node.left)) \orltl (\notltl \phi \andltl Tree2STL(node.right))$}
+}
+\end{algorithm}
+
+
