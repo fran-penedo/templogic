@@ -20,6 +20,8 @@ def cross_validation(data, learn, k=10, save=None):
         classifier = learn(ldata)
         missrates.append(missrate(folds[i], classifier))
         classifiers.append(classifier)
+        print "Miss: %f" % missrates[i]
+        print classifier.get_formula()
 
     return np.mean(missrates), np.std(missrates), missrates, classifiers
 

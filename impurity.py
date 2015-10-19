@@ -18,7 +18,7 @@ def optimize_inf_gain(traces, primitive, rho):
     res = optimize.differential_evolution(
         inf_gain, bounds=zip(lower, upper),
         args=args, popsize=10, maxiter=10,
-        mutation=0.7, disp=True,
+        mutation=0.7, disp=False,
         init='latinhypercube')
     return primitive, -res.fun
 
