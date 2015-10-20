@@ -20,4 +20,36 @@ $\phi \asgn$ formula associated with $node$
 }
 \end{algorithm}
 
+We implemented and tested two different instances of Alg.\ref{alg:inf}, $I_1$ and $I_2$, defined by the choice of parameters given in Table \ref{tab:inst}. In the case of $I_1$, the implementation was done in Matlab using standard libraries, using the simulated annealing optimization method and run on a 3.5 GHz processor with 16 GB RAM. As for $I_2$, we used the SciPy library for Python, solving the optimization problem with its implementation of the differential evolution algorithm, and we tested it on similar hardware.
 
+{\color{blue} Review $I_1$}
+
+\begin{table}
+\begin{tabular}{|c|c|c|c|}
+    \hline
+    Instance & Primitives & Impurity & Stopping \\ \hline
+    $I_1$ & $\CA{P}_1$ & MG & class rate >0.99 \\ \hline
+    $I_2$ & $\CA{P}_2$ & IG & depth >3 \\ \hline
+\end{tabular}
+\caption{Algorithm parameters}
+\label{tab:inst}
+\end{table}
+
+Maritime surveillance
+
+We tested the $I_2$ instance using a non stratified 10-fold crosss-validation with a random permutation of the data set, obtaining a mean misclassification rate of 0.007 with a standard deviation of 0.008 and a run time of about 40 hours. A (simplified) sample formula from one of the runs is:
+
+\begin{equation}
+\begin{aligned}
+    \phi = & ( \phi_1 \andltl (\notltl \phi_2 \orltl (\phi_2 \andltl \notltl \phi_3))) \orltl (\notltl \phi_1 \andltl (\phi_4 \andltl \phi_5)) \\
+    \phi_1 & = \Always_{[199.70, 297.27)} \Event_{[0.00, 0.05)} (x \le 23.60) \\
+    \phi_2 & = \Always_{[4.47, 16.64)} \Event_{[0.00, 198.73)} (y \le 24.20) \\
+    \phi_3 & = \Always_{[34.40, 52.89)} \Event_{[0.00, 61.74)} (y \le 19.62) \\
+    \phi_4 & = \Always_{[30.96, 37.88)} \Event_{[0.00, 250.37)} (x \le 36.60) \\
+    \phi_5 & = \Always_{[62.76, 253.23)} \Event_{[0.00, 41.07)} (y \le 29.90)
+\end{aligned}
+\end{equation}
+
+We can see in Figure~\ref{fig:navalresults} how the thresholds for $\phi_1$ and $\phi_2$ capture the key features of the data set. Notice also the insight we can gain from their plain English translation: "Normal vessels' $x$ coordinate is below 23.6 during the last 100 seconds, i.e., they approach and remain at the port" and "normal vessels' $y$ coordinate never go below 24.2, i.e., they don't approach the island".
+
+{\color{blue} The translations are more level 1 than 2, so maybe do it for the level 1 sample? The first interval is kind of short even for $\phi_2$, so it's justified, but seems weird.}
