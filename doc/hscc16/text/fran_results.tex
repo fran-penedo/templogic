@@ -37,7 +37,7 @@ We implemented and tested two different instances of Alg.\ref{alg:inf}, $I_1$ an
 
 Maritime surveillance
 
-We tested the $I_2$ instance using a non stratified 10-fold crosss-validation with a random permutation of the data set, obtaining a mean misclassification rate of 0.007 with a standard deviation of 0.008 and a run time of about 40 hours. A (simplified) sample formula from one of the runs is:
+We tested the $I_2$ instance using a non stratified 10-fold crosss-validation with a random permutation of the data set, obtaining a mean misclassification rate of 0.007 with a standard deviation of 0.008 and a run time of about 40 hours. A (simplified) sample formula learned from one of the runs is:
 
 \begin{equation}
 \begin{aligned}
@@ -50,6 +50,6 @@ We tested the $I_2$ instance using a non stratified 10-fold crosss-validation wi
 \end{aligned}
 \end{equation}
 
-We can see in Figure~\ref{fig:navalresults} how the thresholds for $\phi_1$ and $\phi_2$ capture the key features of the data set. Notice also the insight we can gain from their plain English translation: "Normal vessels' $x$ coordinate is below 23.6 during the last 100 seconds, i.e., they approach and remain at the port" and "normal vessels' $y$ coordinate never go below 24.2, i.e., they don't approach the island".
+We can see in Figure~\ref{fig:navalresults} how the thresholds for $\phi_1$ and $\phi_2$ capture the key features of the data set. Notice also the insight we can gain from their plain English translation: "Normal vessels' $x$ coordinate is below 23.6 during the last 100 seconds, i.e., they approach and remain at the port" and "normal vessels' $y$ coordinate never go below 24.2, i.e., they don't approach the island". As usual when employing decision trees, deeper formulae focus on finer details of the data set.
 
 {\color{blue} The translations are more level 1 than 2, so maybe do it for the level 1 sample? The first interval is kind of short even for $\phi_2$, so it's justified, but seems weird.}
