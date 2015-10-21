@@ -37,11 +37,12 @@ We implemented and tested two different instances of Alg.\ref{alg:inf}, $I_1$ an
 
 Maritime surveillance
 
-We tested the $I_2$ instance using a non stratified 10-fold crosss-validation with a random permutation of the data set, obtaining a mean misclassification rate of 0.007 with a standard deviation of 0.008 and a run time of about 40 hours. A (simplified) sample formula learned from one of the runs is:
+We tested the $I_2$ instance using a non stratified 10-fold cross-validation with a random permutation of the data set, obtaining a mean misclassification rate of 0.007 with a standard deviation of 0.008 and a run time of about 4 hours per split. A (simplified) sample formula learned from one of the runs is:
 
 \begin{equation}
+    \label{eq:nav2}
 \begin{aligned}
-    \phi = & ( \phi_1 \andltl (\notltl \phi_2 \orltl (\phi_2 \andltl \notltl \phi_3))) \orltl (\notltl \phi_1 \andltl (\phi_4 \andltl \phi_5)) \\
+    \phi & = ( \phi_1 \andltl (\notltl \phi_2 \orltl (\phi_2 \andltl \notltl \phi_3))) \orltl (\notltl \phi_1 \andltl (\phi_4 \andltl \phi_5)) \\
     \phi_1 & = \Always_{[199.70, 297.27)} \Event_{[0.00, 0.05)} (x \le 23.60) \\
     \phi_2 & = \Always_{[4.47, 16.64)} \Event_{[0.00, 198.73)} (y \le 24.20) \\
     \phi_3 & = \Always_{[34.40, 52.89)} \Event_{[0.00, 61.74)} (y \le 19.62) \\
@@ -50,6 +51,45 @@ We tested the $I_2$ instance using a non stratified 10-fold crosss-validation wi
 \end{aligned}
 \end{equation}
 
-We can see in Figure~\ref{fig:navalresults} how the thresholds for $\phi_1$ and $\phi_2$ capture the key features of the data set. Notice also the insight we can gain from their plain English translation: "Normal vessels' $x$ coordinate is below 23.6 during the last 100 seconds, i.e., they approach and remain at the port" and "normal vessels' $y$ coordinate never go below 24.2, i.e., they don't approach the island". As usual when employing decision trees, deeper formulae focus on finer details of the data set.
+We can see in Figure~\ref{fig:navalresults} how the thresholds for $\phi_1$ and $\phi_2$ capture the key features of the data set. Notice also the insight we can gain from their plain English translation: "Normal vessels' $x$ coordinate is below 23.6 during the last 100 seconds, i.e., they approach and remain at the port" and "normal vessels' $y$ coordinate never go below 24.2, i.e., they don't approach the island". It is worth mentioning the second term of the outer disjunction in $\phi$, as it highlights a feature of the data set difficult to spot on the figures: some normal vessels don't reach the port (inspecting the data set, some normal traces stop right after crossing the passage). As usual when employing decision trees, deeper formulae focus on finer details of the data set.
+
+In the case of $I_1$, we tested it with a single random split of {\color{red}X} training traces and {\color{red}X} validation traces. We obtained for this experiment a misclassification rate of {\color{red}X}, with a run time of about {\color{red}X} minutes and the following formula:
+
+\begin{equation}
+    \label{eq:nav1}
+\begin{aligned}
+    \phi = {\color{red} FOO}
+\end{aligned}
+\end{equation}
+
+{\color{blue} Discuss the formula. If the thresholds are similar to \ref{eq:nav2}, point that out.}
+
+{\color{blue} Consider running $I_1$ a couple more times so we can talk about mean and std for all cases}
 
 {\color{blue} The translations are more level 1 than 2, so maybe do it for the level 1 sample? The first interval is kind of short even for $\phi_2$, so it's justified, but seems weird.}
+
+Fuel control
+
+In this scenario, we tested both instances using only the {\color{red} X and Y} variables of the data set. We performed a similar cross-validation for $I_2$\footnote{Due to time constraints, we only report here the results for the first three splits}, resulting in a mean misclassification rate of 0.031 with a standard deviation of 0.008 and a run time of about 15 hours per split. A sample formula is:
+
+\begin{equation}
+    \label{eq:fuel2}
+\begin{aligned}
+    \phi & =  \notltl \phi_1 \andltl \phi_2 \andltl \phi_3 \\
+    \phi_1 & = \Event_{[1.85, 58.70)} \Always_{[0.00, 0.57)} (x_0 \le 0.13) \\
+    \phi_2 & = \Always_{[11.35, 59.55)} \Event_{[0.00, 0.03)} (x_0 \le 0.99) \\
+    \phi_3 & = \Always_{[1.65, 58.89)} \Event_{[0.00, 0.44)} (x_1 \le 0.90) \\
+\end{aligned}
+\end{equation}
+
+Notice in this case how the resulting subformulas are equivalent to level 1 primitives, suggesting that $\CA{P}_2$ is an overly complicated set of primitives.
+
+Regarding $I_1$, we obtained a misclassification rate of {\color{red} X} for a run time of {\color{red} X} minutes. The resulting formula is the following:
+
+
+\begin{equation}
+    \label{eq:fuel1}
+\begin{aligned}
+    \phi & =  {\color{red} BAR}
+\end{aligned}
+\end{equation}
