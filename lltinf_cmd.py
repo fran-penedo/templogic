@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.io import loadmat
+from scipy.io import loadmat, savemat
 #import matplotlib.pyplot as plt
 from os import path
 import validate
@@ -7,9 +7,6 @@ import argparse
 import os
 
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
-
-SIMPLEDS=path.join('data', 'SimpleDS', 'SimpleDS.mat')
-SIMPLEDS2=path.join('data', 'SimpleDS2', 'simpleDS2.mat')
 
 def load_traces(filename):
     ''' Loads traces' data from a matlab MAT file. The data is stores in 3
@@ -26,34 +23,24 @@ def load_traces(filename):
     data[:, :dims[1]-1, :] = mat_data['data']
     data[:, dims[1]-1, :] = mat_data['t']
     # create list of labels (classes: positive, negative)
-    labels = list(mat_data['labels'][0])
+    if 'labels' in mat_data:
+        labels = list(mat_data['labels'][0])
+    else:
+        labels = None
     # create data structure of traces
     return Traces(signals=data, labels=labels)
 
-def lltinf_simple_test():
-    '''Simple case study.'''
-    traces = load_traces(SIMPLEDS)
-    print traces.signals.shape
-    print len(traces.labels)
-    # run classification algorithm
-    lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
 
-def lltinf_simple2_test():
-    '''Simple case study.'''
-    traces = load_traces(SIMPLEDS2)
-    print traces.signals.shape
-    print len(traces.labels)
-    # run classification algorithm
-    tree = lltinf(traces, depth=2, stop_condition=[perfect_stop, depth_stop])
-    print tree.get_formula()
+def save_traces(traces, filename):
+    signals, labels = traces.as_list()
+    mat_data = {
+        'data': signals[:, :(signals.shape[1] - 1), :],
+        't': signals[:, (signals.shape[1] - 1), :],
+    }
+    if len(labels) > 0:
+        mat_data['labels'] = labels
 
-def lltinf_naval_test():
-    '''Naval vessel case study.'''
-    traces = load_traces(r'..\Test Cases\Naval\naval_preproc_data_online.mat')
-    print traces.signals.shape
-    print len(traces.labels)
-    # run classification algorithm
-    lltinf(traces, depth=1, stop_condition=[perfect_stop, depth_stop])
+    savemat(filename, mat_data)
 
 
 def cv_test(matfile, depth=3, out_perm=None):

@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 
-def cross_validation(data, learn, k=10, save=None):
+def cross_validation(data, learn, k=10, save=None, disp=False):
     p = np.random.permutation(len(data))
     if save is not None:
         with open(save, 'wb') as out:
@@ -15,13 +15,14 @@ def cross_validation(data, learn, k=10, save=None):
     missrates = []
     classifiers = []
     for i in range(k):
-        print "Cross validation step %d" % i
         ldata = [x for fold in folds for x in fold]
         classifier = learn(ldata)
         missrates.append(missrate(folds[i], classifier))
         classifiers.append(classifier)
-        print "Miss: %f" % missrates[i]
-        print classifier.get_formula()
+        if disp:
+            print "Cross validation step %d" % i
+            print "Miss: %f" % missrates[i]
+            print classifier.get_formula()
 
     return np.mean(missrates), np.std(missrates), missrates, classifiers
 
