@@ -43,11 +43,12 @@ def save_traces(traces, filename):
     savemat(filename, mat_data)
 
 
-def cv_test(matfile, depth=3, out_perm=None):
+def cv_test(matfile, depth=3, out_perm=None, verbose=False):
     traces = load_traces(matfile)
     mean, std, missrates, classifiers = \
-        validate.cross_validation(zip(*traces.as_list()), lltinf_learn(depth),
-                                  save=out_perm)
+        validate.cross_validation(zip(*traces.as_list()),
+                                  lltinf_learn(depth, verbose),
+                                  save=out_perm, disp=verbose)
     print "Mean: %f" % mean
     print "Standard Deviation %f" % std
     for i in range(len(missrates)):
@@ -55,22 +56,38 @@ def cv_test(matfile, depth=3, out_perm=None):
         print classifiers[i].get_formula()
 
 
-def lltinf_learn(depth):
+def lltinf_learn(depth, disp=False):
     return lambda data: lltinf(Traces(*zip(*data)), depth=depth,
-                               stop_condition=[perfect_stop, depth_stop])
+                               stop_condition=[perfect_stop, depth_stop],
+                               disp=disp)
+
+
+def learn_formula(matfile, depth, verbose=True):
+    traces = load_traces(matfile)
+    learn = lltinf_learn(depth, verbose)
+    classifier = learn(zip(*traces.as_list()))
+    print classifier.get_formula()
+
 
 def get_argparser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('-d', '--depth', metavar='D', type=int, nargs=1,
+    parser.add_argument('action', choices=['learn', 'cv'], nargs='?',
+                        default='cv', help='action to take')
+    parser.add_argument('-d', '--depth', metavar='D', type=int,
                         default=3, help='maximum depth of the decision tree')
-    parser.add_argument('file', nargs=1, help='.mat file containing the data')
-    parser.add_argument('--out-perm', metavar='f', nargs=1, default=None,
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='display more info')
+    parser.add_argument('file', help='.mat file containing the data')
+    parser.add_argument('--out-perm', metavar='f', default=None,
                         help='if specified, saves the cross validation permutation into f')
     return parser
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
-    cv_test(path.join(os.getcwd(), args.file[0]), args.depth[0],
-            path.join(os.getcwd(), args.out_perm[0]))
+    if args.action == 'learn':
+        learn_formula(path.join(os.getcwd(), args.file), args.depth)
+    else:
+        cv_test(path.join(os.getcwd(), args.file), args.depth,
+                path.join(os.getcwd(), args.out_perm))

@@ -100,14 +100,14 @@ class DTree(object):
 
 # Main inference function
 def lltinf(traces, rho=None, depth=1,
-           optimize_impurity=optimize_inf_gain, stop_condition=None):
+           optimize_impurity=optimize_inf_gain, stop_condition=None, disp=False):
     np.seterr(all='ignore')
     if stop_condition is None:
         stop_condition = [perfect_stop]
 
-    return lltinf_(traces, rho, depth, optimize_impurity, stop_condition)
+    return lltinf_(traces, rho, depth, optimize_impurity, stop_condition, disp)
 
-def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
+def lltinf_(traces, rho, depth, optimize_impurity, stop_condition, disp=False):
     args = locals().copy()
     # Stopping condition
     if any([stop(args) for stop in stop_condition]):
@@ -116,8 +116,9 @@ def lltinf_(traces, rho, depth, optimize_impurity, stop_condition):
     # Find primitive using impurity measure
     primitives = make_llt_primitives(traces.signals)
     primitive, impurity = find_best_primitive(traces, primitives, rho,
-                                              optimize_impurity)
-    print primitive
+                                              optimize_impurity, disp)
+    if disp:
+        print primitive
 
     # Classify using best primitive and split into groups
     tree = DTree(primitive, traces)

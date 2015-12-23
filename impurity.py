@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 
-def optimize_inf_gain(traces, primitive, rho):
+def optimize_inf_gain(traces, primitive, rho, disp=False):
     # [t0, t1, t3, pi]
     maxt = max(np.amax(traces.get_sindex(-1), 1))
     lower = [0, 0, 0, min(np.amin(traces.get_sindex(primitive.index), 1))]
@@ -18,7 +18,7 @@ def optimize_inf_gain(traces, primitive, rho):
     res = optimize.differential_evolution(
         inf_gain, bounds=zip(lower, upper),
         args=args, popsize=10, maxiter=10,
-        mutation=0.7, disp=False,
+        mutation=0.7, disp=disp,
         init='latinhypercube')
     return primitive, -res.fun
 
