@@ -160,9 +160,9 @@ def perfect_stop(kwargs):
 def depth_stop(kwargs):
     return kwargs['depth'] <= 0
 
-def find_best_primitive(traces, primitives, robustness, optimize_impurity):
+def find_best_primitive(traces, primitives, robustness, optimize_impurity, disp):
     # Parameters will be set for the copy of the primitive
-    opt_prims = [optimize_impurity(traces, primitive.copy(), robustness)
+    opt_prims = [optimize_impurity(traces, primitive.copy(), robustness, disp)
                  for primitive in primitives]
     return max(opt_prims, key=lambda x: x[1])
 
