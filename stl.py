@@ -1,3 +1,10 @@
+"""
+Module with STL definitions
+
+Author: Francisco Penedo (franp@bu.edu)
+
+"""
+
 import operator
 import copy
 import numpy as np
@@ -16,12 +23,50 @@ GT = operator.gt
 
 
 class Signal(object):
+    """
+    Class for an observed signal.
+
+    Example: let y(t) = x1(t) + x2(t) be an observed (or secondary) signal for a
+    model with primary signals x1 and x2. We can define this signal as follows:
+
+    >>> x = [[1,2,3], [3,4,5]]
+    >>> class Model():
+    >>>     def getVarByName(self, i):
+    >>>         return x[i[0]][i[1]]
+    >>> labels = [lambda t: (0, t), lambda t: (1, t)]
+    >>> f = lambda x, y: x + y
+    >>> y = Signal(labels, f)
+    >>> signal(Model(), 1)
+    6
+
+    """
 
     def __init__(self, labels, f):
+        """
+        labels : array of functions
+                 Functions that return the name of the primary signals at any
+                 given time needed for this observed signal.
+        f : function
+            Function of the primary signals. Arity should be equal to the length
+            of labels.
+        """
+
         self._labels = labels
         self._f = f
 
     def signal(self, model, t):
+        """
+        Obtain the observed signal at time t for the given model.
+
+        model : object with a getVarByName(self, signal_t) method
+                The model containing the time series for the primary signals.
+                The method getVarByName should accept objects returned by the
+                functions in the labels parameter to __init__ and return the
+                value of the signal at the given time
+        t : numeric
+            The time
+        """
+
         vs = [model.getVarByName(l(t)) for l in self._labels]
         # TODO Get rid of any
         if any(var is None for var in vs):
@@ -31,8 +76,22 @@ class Signal(object):
 
 
 class Formula(object):
+    """
+    An STL formula.
+
+    """
 
     def __init__(self, operator, args, bounds=None):
+        """
+        operator : one of EXPR, AND, OR, NOT, ALWAYS, EVENTUALLY, NEXT
+        args : either a list of Formulas or a Signal
+               If operator is EXPR, this is the signal corresponding to the
+               atomic formula g(t) > 0. Otherwise, the list of arguments of the
+               operator (1 for NOT, and the temporal operators, 2 or more for
+               AND and OR).
+        bounds : list of two numerics, optional
+                 The bounds of the temporal operator. Defaults to [0, 0]
+        """
         self._op = operator
         self._args = args
         if bounds is None:
@@ -61,6 +120,9 @@ class Formula(object):
         return self._halways()
 
     def horizon(self):
+        """
+        Computes the time horizon of the formula
+        """
         return {
             EXPR: self._hexpr,
             NOT: self._hnot,
@@ -118,23 +180,42 @@ class Formula(object):
 
 # FIXME used fixed time intervals
 def robustness(formula, model, t=0):
+    """
+    Computes the robustness of a formula with respect to a model at time t.
+
+    The computation is recursive.
+
+    formula : Formula
+    model : object as defined in Signal
+            The model containing the values of the primary signal.
+    time : numeric
+           The time at which to compute the robustness.
+    """
     return {
         EXPR: lambda: formula.args[0].signal(model, t),
         NOT: lambda: -robustness(formula.args[0], model, t),
-        AND: lambda: min(map(lambda f: robustness(f, model, t), formula.args)),
-        OR: lambda: max(map(lambda f: robustness(f, model, t), formula.args)),
+        AND: lambda: min(robustness(f, model, t) for f in formula.args),
+        OR: lambda: max(robustness(f, model, t) for f in formula.args),
         NEXT: lambda: robustness(formula.args[0], model, t + model.tinter),
-        ALWAYS: lambda: min(map(
-            lambda j: robustness(formula.args[0], model, t + j),
+        ALWAYS: lambda: min(robustness(formula.args[0], model, t + j) for j in
             np.arange(formula.bounds[0],
                       formula.bounds[1] + model.tinter,
-                      model.tinter))),
-        EVENTUALLY: lambda: max(map(
-            lambda j: robustness(formula.args[0], model, t + j),
+                      model.tinter)),
+        EVENTUALLY: lambda: max(robustness(formula.args[0], model, t + j) for j in
             np.arange(formula.bounds[0],
                       formula.bounds[1] + model.tinter,
-                      model.tinter)))
+                      model.tinter))
     }[formula.op]()
 
 def satisfies(formula, model, t=0):
+    """
+    Checks if a model satisfies a formula at some time.
+
+    Satisfaction is defined in this function as robustness >= 0.
+
+    formula : Formula
+    model : a model as defined in Signal
+    t : numeric
+        The time
+    """
     return robustness(formula, model, t) >= 0
