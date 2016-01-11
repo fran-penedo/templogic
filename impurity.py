@@ -1,5 +1,12 @@
+"""
+Impurity measure definition and optimization module.
+
+Currently defines information gain.
+
+Author: Francisco Penedo (franp@bu.edu)
+
+"""
 from scipy import optimize
-import optimization
 from llt import set_llt_pars, SimpleModel, split_groups
 from stl import robustness
 import numpy as np
@@ -7,6 +14,10 @@ import math
 
 
 def optimize_inf_gain(traces, primitive, rho, disp=False):
+    """
+    Optimizes the extended information gain for the given labeled traces.
+
+    """
     # [t0, t1, t3, pi]
     maxt = max(np.amax(traces.get_sindex(-1), 1))
     lower = [0, 0, 0, min(np.amin(traces.get_sindex(primitive.index), 1))]
@@ -23,26 +34,8 @@ def optimize_inf_gain(traces, primitive, rho, disp=False):
     return primitive, res.fun
 
 
-def constrained_sample(theta_scaled):
-    # all in [0, 1]
-    t0, t1, t3, pi = theta_scaled
-    if t0 > t1:
-        t0, t1 = t1, t0
-    if t1 + t3 > 1:
-        t3 = 1 - t1
-
-    return [t0, t1, t3, pi]
-
-def constrained_sample_init(theta_scaled):
-    # all in [0, 1]
-    t0, t1, t3, pi = theta_scaled
-    t1 = t0 + (1 - t0) * t1
-    t3 = (1-t1) * t3
-
-    return [t0, t1, t3, pi]
-
-def transform_pars(theta, maxt):
-    # all in [0, 1]
+def _transform_pars(theta, maxt):
+    # Transform all arguments to be in [0, 1]
     t0, t1, t3, pi = theta
     t1 = t0 + (maxt - t0) * t1 / maxt
     t3 = (maxt - t1) * t3 / maxt
@@ -50,6 +43,16 @@ def transform_pars(theta, maxt):
     return [t0, t1, t3, pi]
 
 def inf_gain(theta, *args):
+    """
+    Function to optimize. Obtains the information gain of the sample theta.
+
+    The extra fixed arguments are defined as:
+        args = [primitive, models, prev_rho, traces, maxt]
+    where primitive is the formula to optimize, models is a list of SimpleModel
+    objects associated with each trace for the signal index defined in the
+    primitive, prev_rho is the robustness of each trace up until the current
+    node, traces is a Traces object and maxt is the maximum sampled time.
+    """
     primitive = args[0]
     models = args[1]
     # May be None, TODO check. Can't do it up in the stack
@@ -57,7 +60,7 @@ def inf_gain(theta, *args):
     traces = args[3]
     maxt = args[4]
 
-    theta = transform_pars(theta, maxt)
+    theta = _transform_pars(theta, maxt)
 
     if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
         print 'bad'
@@ -74,17 +77,17 @@ def inf_gain(theta, *args):
     # compute IG
     # Sum of absolute value of the robustness for all traces
     stotal = sum(np.abs(zip(*rho_labels)[0]))
-    ig = entropy(rho_labels) - inweights(sat, stotal) * entropy(sat) - \
-        inweights(unsat, stotal) * entropy(unsat)
+    ig = _entropy(rho_labels) - _inweights(sat, stotal) * _entropy(sat) - \
+        _inweights(unsat, stotal) * _entropy(unsat)
 
     return -ig
 
-def inweights(part, stotal):
+def _inweights(part, stotal):
     if len(part) == 0:
         return 0
     return sum(np.abs(zip(*part)[0])) / stotal
 
-def entropy(part):
+def _entropy(part):
     if len(part) == 0:
         return 0
 
@@ -101,6 +104,8 @@ def entropy(part):
         return 0
     else:
         return - w_p * math.log(w_p) - w_n * math.log(w_n)
+
+# Dummy functions to test the optimization structure
 
 def optimize_inf_gain_skel(traces, primitive, rho):
     # [t0, t1, t3, pi]
@@ -126,4 +131,22 @@ def inf_gain_skel(theta, *args):
     return - theta[0] - theta[1] - theta[2] - theta[3] - primitive.index
 
 
+# Unused
 
+def constrained_sample(theta_scaled):
+    # all in [0, 1]
+    t0, t1, t3, pi = theta_scaled
+    if t0 > t1:
+        t0, t1 = t1, t0
+    if t1 + t3 > 1:
+        t3 = 1 - t1
+
+    return [t0, t1, t3, pi]
+
+def constrained_sample_init(theta_scaled):
+    # all in [0, 1]
+    t0, t1, t3, pi = theta_scaled
+    t1 = t0 + (1 - t0) * t1
+    t3 = (1-t1) * t3
+
+    return [t0, t1, t3, pi]
