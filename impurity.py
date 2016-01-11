@@ -20,7 +20,7 @@ def optimize_inf_gain(traces, primitive, rho, disp=False):
         args=args, popsize=10, maxiter=10,
         mutation=0.7, disp=disp,
         init='latinhypercube')
-    return primitive, -res.fun
+    return primitive, res.fun
 
 
 def constrained_sample(theta_scaled):
