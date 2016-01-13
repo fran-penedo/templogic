@@ -1,7 +1,34 @@
+"""
+Module with helper functions to run validation tests
+
+Author: Francisco Penedo (franp@bu.edu)
+
+"""
 import numpy as np
 import pickle
 
 def cross_validation(data, learn, k=10, save=None, disp=False):
+    """
+    Performs a k-fold cross validation test.
+
+    data : a list of labeled traces
+           The input data for the cross validation test. It must be a list of
+           pairs [trace, label], where the trace is an m by n matrix with the
+           last row being the sampling times and the label is 1 or -1.
+    learn : a function from data to a classifier
+            The learning function. Must accept as a parameter a subset of the
+            data and return a classifier. A classifier must be an object with
+            a method classify(trace), where trace is defined as in the data
+            argument.
+    k : integer, optional, defaults to 10
+        The number of folds
+    save : string, optional
+           If specified, the name of a file to save the permutation used to
+           split the data.
+    disp : boolean, optional, defaults to False
+           Toggles the output of debugging information
+
+    """
     p = np.random.permutation(len(data))
     if save is not None:
         with open(save, 'wb') as out:
@@ -27,6 +54,16 @@ def cross_validation(data, learn, k=10, save=None, disp=False):
     return np.mean(missrates), np.std(missrates), missrates, classifiers
 
 def missrate(validate, classifier):
+    """
+    Obtains the missrate of a classifier on a given validation set.
+
+    validate : a list of labeled traces
+               A validation set. See cross_validation for a description of the
+               format
+    classifier : an object with a classify method
+                 The classifier. See cross_validation for a description
+
+    """
     data, labels = zip(*validate)
     labels = np.array(labels)
     test = np.array([classifier.classify(x) for x in data])
