@@ -1,3 +1,11 @@
+"""
+Module containing a command line interface to the classification system.
+
+Run with -h option to see the usage help.
+
+Author: Francisco Penedo (franp@bu.edu)
+
+"""
 import numpy as np
 from scipy.io import loadmat, savemat
 #import matplotlib.pyplot as plt
@@ -9,11 +17,15 @@ import os
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
 
 def load_traces(filename):
-    ''' Loads traces' data from a matlab MAT file. The data is stores in 3
+    """
+    Loads traces' data from a matlab MAT file. The data is stores in 3
     variables called ``data'', ``labels'' and ``t'' which contain the signals'
     values for all dimensions, the class labels (-1 and 1) and the times at
     which the values are sampled.
-    '''
+
+    filename : string
+               The name of a MAT file
+    """
     # load data from MAT file
     mat_data =  loadmat(filename)
     # add time dimension to signals' data
@@ -32,6 +44,14 @@ def load_traces(filename):
 
 
 def save_traces(traces, filename):
+    """
+    Saves a Traces object to a MAT file. See load_traces for a description of
+    the format.
+
+    traces : a Traces object
+    filename : string
+               The name of the file to write
+    """
     signals, labels = traces.as_list()
     mat_data = {
         'data': signals[:, :(signals.shape[1] - 1), :],
@@ -43,6 +63,7 @@ def save_traces(traces, filename):
     savemat(filename, mat_data)
 
 
+# Cross validation test function
 def cv_test(matfile, depth=3, out_perm=None, verbose=False):
     traces = load_traces(matfile)
     mean, std, missrates, classifiers = \
@@ -56,6 +77,7 @@ def cv_test(matfile, depth=3, out_perm=None, verbose=False):
         print classifiers[i].get_formula()
 
 
+# Learning wrapper
 def lltinf_learn(depth, disp=False):
     return lambda data: lltinf(Traces(*zip(*data)), depth=depth,
                                stop_condition=[perfect_stop, depth_stop],
@@ -63,6 +85,16 @@ def lltinf_learn(depth, disp=False):
 
 
 def learn_formula(matfile, depth, verbose=True):
+    """
+    Obtains and prints a classifier formula from a training set.
+
+    matfile : string
+              The name of a MAT file
+    depth : integer
+            Maximum depth of the formula
+    verbose : boolean, optional, defaults to True
+              Toggles debugging info
+    """
     traces = load_traces(matfile)
     learn = lltinf_learn(depth, verbose)
     classifier = learn(zip(*traces.as_list()))
