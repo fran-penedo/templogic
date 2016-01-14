@@ -8,6 +8,8 @@ Author: Francisco Penedo (franp@bu.edu)
 import operator
 import copy
 import numpy as np
+from pyparsing import Word, Suppress, Optional, Combine, nums, \
+    Literal, Forward, delimitedList, alphanums, Keyword, Group
 
 # Operator constants
 EXPR = 0
@@ -219,3 +221,72 @@ def satisfies(formula, model, t=0):
         The time
     """
     return robustness(formula, model, t) >= 0
+
+
+# parser
+
+
+def num_parser():
+    """
+    A floating point number parser
+    """
+    T_DOT = Literal(".")
+    T_MIN = Literal("-")
+    num = Combine(Optional(T_MIN) + Word(nums) +
+              Optional(T_DOT + Word(nums))).setParseAction(lambda t: float(t[0]))
+    return num
+
+
+def stl_parser(expr=None):
+    """
+    Builds an stl parser using the given expression parser.
+
+    The STL grammar used is the following:
+
+        form ::= ( expr )
+               | "~" form
+               | ( and_list )
+               | ( or_list )
+               | op "_" interval form
+        and_list ::= form "^" form
+                   | form "^" and_list
+        or_list ::= form "v" form
+                   | form "v" or_list
+        op ::= "G" | "F"
+        interval ::= [ num "," num ]
+
+    where num is a floating point number
+
+    expr : a parser, optional, defaults to r'\w+'
+           An expression parser.
+    """
+    if not expr:
+        expr = Word(alphanums)
+
+    T_GLOB = Keyword("G", alphanums)
+    T_FUT = Keyword("F", alphanums)
+    T_LPAR, T_RPAR, T_LBRK, T_RBRK, T_UND, T_COM, T_TILD = map(Suppress, "()[]_,~")
+    num = num_parser()
+    interval = Group(T_LBRK + num + T_COM + num + T_RBRK)
+
+    form = Forward()
+
+    form_not = T_TILD + form
+    form_and = T_LPAR + delimitedList(form, "^") + T_RPAR
+    form_or = T_LPAR + delimitedList(form, "v") + T_RPAR
+    form_expr = T_LPAR + expr + T_RPAR
+    form_alw = T_GLOB + T_UND + interval + form
+    form_fut = T_FUT + T_UND + interval + form
+
+    form << (form_expr ^ form_not ^ form_and ^ form_or ^ form_alw ^ form_fut)
+
+    form_expr.setParseAction(lambda t: Formula(EXPR, [t[0]]))
+    form_not.setParseAction(lambda t: Formula(NOT, [t[0]]))
+    form_and.setParseAction(lambda t: Formula(AND, list(t)))
+    form_or.setParseAction(lambda t: Formula(OR, list(t)))
+    form_alw.setParseAction(
+        lambda t: Formula(ALWAYS, [t[2]], bounds=list(t[1])))
+    form_fut.setParseAction(
+        lambda t: Formula(EVENTUALLY, [t[2]], bounds=list(t[1])))
+
+    return form

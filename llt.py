@@ -4,10 +4,13 @@ Module with depth 2 p-stl definitions
 Author: Francisco Penedo (franp@bu.edu)
 
 """
+import stl
 from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
 # from bisect import bisect_left
 import numpy as np
+from pyparsing import Word, alphas, Suppress, Optional, Combine, nums, \
+    Literal, alphanums, Keyword, Group, ParseFatalException, MatchFirst
 
 
 class LLTSignal(Signal):
@@ -224,3 +227,29 @@ def split_groups(l, group):
     p = [x for x in l if group(x)]
     n = [x for x in l if not group(x)]
     return p, n
+
+
+# parser
+
+def expr_parser():
+    num = stl.num_parser()
+
+    T_UND = Suppress(Literal("_"))
+    T_LE = Literal("<=")
+    T_GR = Literal(">")
+
+    integer = Word(nums).setParseAction(lambda t: int(t[0]))
+    relation = (T_LE | T_GR).setParseAction(lambda t: LE if t[0] == "<=" else GT)
+    expr = Suppress(Word(alphas)) + T_UND + integer + relation + num
+    expr.setParseAction(lambda t: LLTSignal(t[0], t[1], t[2]))
+
+    return expr
+
+def llt_parser():
+    """
+    Creates a parser for STL over atomic expressions of the type x_i ~ pi.
+
+    Note that it is not restricted to depth-2 formulas.
+    """
+    stl_parser = MatchFirst(stl.stl_parser(expr_parser()))
+    return stl_parser
