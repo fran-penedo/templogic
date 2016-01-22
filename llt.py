@@ -1,19 +1,41 @@
+"""
+Module with depth 2 p-stl definitions
+
+Author: Francisco Penedo (franp@bu.edu)
+
+"""
+import stl
 from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
 # from bisect import bisect_left
 import numpy as np
+from pyparsing import Word, alphas, Suppress, Optional, Combine, nums, \
+    Literal, alphanums, Keyword, Group, ParseFatalException, MatchFirst
 
 
 class LLTSignal(Signal):
-
-    """Definition of a signal in LLT: x_j ~ pi, where ~ is <= or >"""
+    """
+    Definition of an atomic proposition in LLT: x_j ~ pi, where ~ is <= or >
+    """
 
     def __init__(self, index=0, op=LE, pi=0):
+        """
+        Creates a signal x_j ~ pi.
+
+        index : integer
+                Corresponds to j.
+        op : either LE or GT
+             Corresponds to op.
+        pi : numeric
+
+        """
         self._index = index
         self._op = op
         self._pi = pi
 
+        # labels transform a time into a pair [j, t]
         self._labels = [lambda t: [self._index, t]]
+        # transform to x_j - pi >= 0
         self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
 
     def __deepcopy__(self, memo):
@@ -49,10 +71,22 @@ class LLTSignal(Signal):
 
 
 class LLTFormula(Formula):
-
-    """Docstring for LLTFormula. """
+    """
+    A depth 2 STL formula.
+    """
 
     def __init__(self, live, index, op):
+        """
+        Creates a depth 2 STL formula.
+
+        live : boolean
+               True if the formula has a liveness structure (always eventually)
+               or not (eventually always).
+        index : integer
+                Index for the signal (see LLTSignal)
+        op : either LE or GT
+             Operator for the atomic proposition (see LLTSignal)
+        """
         if live:
             Formula.__init__(self, ALWAYS, [
                 Formula(EVENTUALLY, [
@@ -107,11 +141,17 @@ class LLTFormula(Formula):
         self.args[0].bounds[1] = value
 
     def reverse_op(self):
+        """
+        Reverses the operator of the atomic proposition
+        """
         op = self.args[0].args[0].args[0].op
         self.args[0].args[0].args[0].op = LE if op == GT else GT
 
 
 def set_llt_pars(primitive, t0, t1, t3, pi):
+    """
+    Sets the parameters of a primitive
+    """
     primitive.t0 = t0
     primitive.t1 = t1
     primitive.t3 = t3
@@ -119,18 +159,26 @@ def set_llt_pars(primitive, t0, t1, t3, pi):
 
 
 class SimpleModel(object):
-
-    """Matrix-like model"""
+    """
+    Matrix-like model with fixed sample interval. Suitable for use with
+    LLTFormula
+    """
 
     def __init__(self, signals):
+        """
+        signals : m by n matrix.
+                  Last row should be the sampling times.
+        """
         self._signals = signals
         self._tinter = signals[-1][1] - signals[-1][0]
         self._lsignals = len(signals[-1])
 
     def getVarByName(self, indices):
-        '''indices[0] represents the name of the signal
-        indices[1] represents the time at which to sample the signal
-        '''
+        """
+        indices : pair of numerics
+                  indices[0] represents the name of the signal
+                  indices[1] represents the time at which to sample the signal
+        """
 #         tindex = max(min(
 #             bisect_left(self._signals[-1], indices[1]),
 #             len(self._signals[-1]) - 1),
@@ -149,6 +197,12 @@ class SimpleModel(object):
 
 
 def make_llt_primitives(signals):
+    """
+    Obtains the depth 2 primitives associated with the structure of the signals.
+
+    signals : m by n matrix
+              Last column should be the sampling times
+    """
     alw_ev = [
         LLTFormula(True, index, op)
         for index, op
@@ -163,6 +217,39 @@ def make_llt_primitives(signals):
     return alw_ev + ev_alw
 
 def split_groups(l, group):
+    """
+    Splits a list according to a binary grouping function. Returns the positive
+    group first
+
+    l : a list
+    group : a function from elements of l to boolean
+    """
     p = [x for x in l if group(x)]
     n = [x for x in l if not group(x)]
     return p, n
+
+
+# parser
+
+def expr_parser():
+    num = stl.num_parser()
+
+    T_UND = Suppress(Literal("_"))
+    T_LE = Literal("<=")
+    T_GR = Literal(">")
+
+    integer = Word(nums).setParseAction(lambda t: int(t[0]))
+    relation = (T_LE | T_GR).setParseAction(lambda t: LE if t[0] == "<=" else GT)
+    expr = Suppress(Word(alphas)) + T_UND + integer + relation + num
+    expr.setParseAction(lambda t: LLTSignal(t[0], t[1], t[2]))
+
+    return expr
+
+def llt_parser():
+    """
+    Creates a parser for STL over atomic expressions of the type x_i ~ pi.
+
+    Note that it is not restricted to depth-2 formulas.
+    """
+    stl_parser = MatchFirst(stl.stl_parser(expr_parser()))
+    return stl_parser
