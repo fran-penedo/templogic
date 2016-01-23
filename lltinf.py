@@ -48,6 +48,11 @@ class Traces(object):
         """
         return [self.signals, self.labels]
 
+    def zipped(self):
+        """
+        Returns the constructor arguments zipped
+        """
+        return zip(*self.as_list())
 
 class DTree(object):
     """
