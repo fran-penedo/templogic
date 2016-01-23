@@ -15,6 +15,8 @@ import argparse
 import os
 
 from lltinf import perfect_stop, depth_stop, lltinf, Traces
+from llt import llt_parser, SimpleModel
+from stl import satisfies
 
 def load_traces(filename):
     """
@@ -101,12 +103,45 @@ def learn_formula(matfile, depth, verbose=True):
     print classifier.get_formula()
 
 
+def classify_one(formula, signal):
+    return 1 if satisfies(formula, SimpleModel(signal)) else -1
+
+
+def classify(data, classifier, out):
+    """
+    Classifies a data set using an STL classifier and writes the classified
+    data set to a mat file.
+
+    data : mat file path
+           The data set to classify
+    classifier : text file path
+                 File containing the classifying formula
+    out : mat file path
+          The output file
+    """
+    traces = load_traces(data)
+    with open(classifier, 'r') as c:
+        stl = llt_parser().parseString(c.readline())[0]
+
+    labels = [classify_one(stl, signal) for signal in traces.signals]
+    save_traces(Traces(traces.signals, labels), out)
+
+
 def get_argparser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('action', choices=['learn', 'cv'], nargs='?',
-                        default='cv', help='action to take')
+    parser.add_argument('action', choices=['learn', 'cv', 'classify'], nargs='?',
+                        default='cv', help=
+                            """
+                            action to take:
+                            'learn': builds a classifier for the given training
+                            set. The resulting stl formula will be printed.
+                            'cv': performs a cross validation test using the
+                            given training set.
+                            'classify': classifies a data set using the given
+                            classifier (-c must be specified)
+                            """)
     parser.add_argument('-d', '--depth', metavar='D', type=int,
                         default=3, help='maximum depth of the decision tree')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -114,12 +149,25 @@ def get_argparser():
     parser.add_argument('file', help='.mat file containing the data')
     parser.add_argument('--out-perm', metavar='f', default=None,
                         help='if specified, saves the cross validation permutation into f')
+    parser.add_argument('-c', '--classifier', metavar='f', default=None,
+                        help='file containing the classifier')
+    parser.add_argument('-o', '--out', metavar='f', default=None,
+                        help='results from the classification will be stored in MAT format in this file')
     return parser
+
+
+def get_path(f):
+    return path.join(os.getcwd(), f)
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
     if args.action == 'learn':
-        learn_formula(path.join(os.getcwd(), args.file), args.depth)
+        learn_formula(get_path(args.file), args.depth)
+    elif args.action =='cv':
+        cv_test(get_path(args.file), args.depth,
+                get_path(args.out_perm))
+    elif args.action == 'classify':
+        classify(get_path(args.file), get_path(args.classifier),
+                 get_path(args.out))
     else:
-        cv_test(path.join(os.getcwd(), args.file), args.depth,
-                path.join(os.getcwd(), args.out_perm))
+        raise Exception("Action not implemented")
