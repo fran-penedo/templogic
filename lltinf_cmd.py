@@ -100,6 +100,7 @@ def learn_formula(matfile, depth, verbose=True):
     traces = load_traces(matfile)
     learn = lltinf_learn(depth, verbose)
     classifier = learn(zip(*traces.as_list()))
+    print "Classifier:"
     print classifier.get_formula()
 
 
