@@ -41,6 +41,17 @@ class LLTSignal(Signal):
     def __deepcopy__(self, memo):
         return LLTSignal(self.index, self.op, self.pi)
 
+    def __getstate__(self):
+        odict = self.__dict__.copy()
+        del odict['_labels']
+        del odict['_f']
+        return odict
+
+    def __setstate__(self, dict):
+        self.__dict__.update(dict)
+        self._labels = [lambda t: [self._index, t]]
+        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
+
     def __str__(self):
         return "x_%d %s %.2f" % (self.index,
                                  "<=" if self.op == LE else ">", self.pi)

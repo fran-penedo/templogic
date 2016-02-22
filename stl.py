@@ -232,8 +232,12 @@ def num_parser():
     """
     T_DOT = Literal(".")
     T_MIN = Literal("-")
+    T_PLU = Literal("+")
+    T_EXP = Literal("e")
     num = Combine(Optional(T_MIN) + Word(nums) +
-              Optional(T_DOT + Word(nums))).setParseAction(lambda t: float(t[0]))
+                  Optional(T_DOT + Word(nums)) +
+                  Optional(T_EXP + Optional(T_MIN ^ T_PLU) + Word(nums)))
+    num = num.setParseAction(lambda t: float(t[0]))
     return num
 
 

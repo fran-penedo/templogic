@@ -19,6 +19,22 @@ def add_min_constr(m, label, args, K, nnegative=True):
 
 # TODO handle len(args) == 2 differently
 def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
+    """
+    Adds the constraint label = op{args} to the milp m
+
+    m : a gurobi Model
+    label : a string
+            Prefix for the variables added
+    args : a list of variables
+           The set of variables forming the argument of the operation
+    K : a numeric
+        Must be an upper bound of the absolute value of the variables in args
+    op : a value from ['min', 'max']
+         The operation to encode
+    nnegative : a boolean
+                True if 0 is lower bound of all variables in args
+
+    """
     if op not in ['min', 'max']:
         raise ValueError('Expected one of [min, max]')
 
@@ -164,6 +180,20 @@ def _stl_eventually(m, label, f, t):
 
 
 def add_stl_constr(m, label, f, t=0):
+    """
+    Adds the stl constraint f at time t to the milp m.
+
+    m : a gurobi Model
+    label : a string
+            The prefix for the variables added when encoding the constraint
+    f : an stl Formula
+        The constraint to add. Expressions will be added as the value of the
+        signal at the corresponding time using m as the model (i.e., the
+        expression variables will be obtained by calling m.getVarByName)
+    t : a numeric
+        The base time for the constraint
+
+    """
     return {
         EXPR: _stl_expr,
         NOT: _stl_not,
