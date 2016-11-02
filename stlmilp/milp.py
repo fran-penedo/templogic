@@ -1,5 +1,5 @@
 import gurobipy as g
-from stl import *
+from .stl import *
 
 
 # Common transformations

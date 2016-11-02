@@ -4,8 +4,8 @@ Module with depth 2 p-stl definitions
 Author: Francisco Penedo (franp@bu.edu)
 
 """
-import stl
-from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
+import .stl
+from .stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
 # from bisect import bisect_left
 import numpy as np
