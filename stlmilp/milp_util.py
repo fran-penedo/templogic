@@ -254,8 +254,8 @@ def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
                 m.addConstr(x[label(l, i, j)] == x0[i])
             else:
                 m.addConstr(x[label(l, i, j)] ==
-                            g.quicksum(A[i][k] * x[label(l, k, j - 1)] + b[k]
-                                       for k in range(A.shape[0])))
+                            g.quicksum(A[i][k] * x[label(l, k, j - 1)]
+                                       for k in range(A.shape[0])) + b[i])
     m.update()
 
     return x
