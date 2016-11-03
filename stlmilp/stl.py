@@ -43,7 +43,7 @@ class Signal(object):
 
     """
 
-    def __init__(self, labels, f):
+    def __init__(self, labels, f, bounds=None):
         """
         labels : array of functions
                  Functions that return the name of the primary signals at any
@@ -53,8 +53,9 @@ class Signal(object):
             of labels.
         """
 
-        self._labels = labels
-        self._f = f
+        self.labels = labels
+        self.f = f
+        self.bounds = bounds if bounds else [-1,1]
 
     def signal(self, model, t):
         """
@@ -69,12 +70,12 @@ class Signal(object):
             The time
         """
 
-        vs = [model.getVarByName(l(t)) for l in self._labels]
+        vs = [model.getVarByName(l(t)) for l in self.labels]
         # TODO Get rid of any
         if any(var is None for var in vs):
             return None
         else:
-            return self._f(vs)
+            return self.f(vs)
 
 
 class Formula(object):
@@ -241,7 +242,7 @@ def num_parser():
     return num
 
 
-def stl_parser(expr=None):
+def stl_parser(expr=None, float_bounds=True):
     """
     Builds an stl parser using the given expression parser.
 
@@ -270,14 +271,17 @@ def stl_parser(expr=None):
     T_GLOB = Keyword("G", alphanums)
     T_FUT = Keyword("F", alphanums)
     T_LPAR, T_RPAR, T_LBRK, T_RBRK, T_UND, T_COM, T_TILD = map(Suppress, "()[]_,~")
-    num = num_parser()
+    if float_bounds:
+        num = num_parser()
+    else:
+        num = Word(nums).setParseAction(lambda t: int(t[0]))
     interval = Group(T_LBRK + num + T_COM + num + T_RBRK)
 
     form = Forward()
 
     form_not = T_TILD + form
-    form_and = T_LPAR + delimitedList(form, "^") + T_RPAR
-    form_or = T_LPAR + delimitedList(form, "v") + T_RPAR
+    form_and = T_LPAR + delimitedList(form, "&") + T_RPAR
+    form_or = T_LPAR + delimitedList(form, "|") + T_RPAR
     form_expr = T_LPAR + expr + T_RPAR
     form_alw = T_GLOB + T_UND + interval + form
     form_fut = T_FUT + T_UND + interval + form

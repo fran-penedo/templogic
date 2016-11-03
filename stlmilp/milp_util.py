@@ -1,6 +1,12 @@
 import gurobipy as g
 from .stl import *
 
+GRB = g.GRB
+
+def create_milp(name, minim=True):
+    m = g.Model(name)
+    m.modelSense = g.GRB.MINIMIZE if minim else g.GRB.MAXIMIZE
+    return m
 
 # Common transformations
 
@@ -152,7 +158,7 @@ def _stl_next(m, label, f, t):
 def _stl_always_eventually(m, label, f, t, op):
     xx = []
     boundss = []
-    for i in range(f.bnd[0], f.bnd[1] + 1):
+    for i in range(f.bounds[0], f.bounds[1] + 1):
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
                                    t + i)
         if x is not None:
@@ -221,3 +227,35 @@ def add_always_penalized(m, label, a, b, rho, K, obj, t=0):
     add_penalty(m, label, y, obj)
     return y
 
+
+# Dynamic System Constraints
+def label(name, i, j):
+    return name + "_" + str(i) + "_" + str(j)
+
+def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
+    if xhist is None:
+        xhist = []
+
+    # Decision variables
+    x = {}
+    for i in range(A.shape[0]):
+        for j in range(-len(xhist), N):
+            labelx = label(l, i, j)
+            x[labelx] = m.addVar(
+                obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=labelx)
+    m.update()
+
+    # Dynamics
+    for i in range(A.shape[0]):
+        for j in range(-len(xhist), N):
+            if j < 0:
+                m.addConstr(x[label(l, i, j)] == xhist[len(xhist) + j][i])
+            elif j == 0:
+                m.addConstr(x[label(l, i, j)] == x0[i])
+            else:
+                m.addConstr(x[label(l, i, j)] ==
+                            g.quicksum(A[i][k] * x[label(l, k, j - 1)] + b[k]
+                                       for k in range(A.shape[0])))
+    m.update()
+
+    return x
