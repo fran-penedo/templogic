@@ -1,6 +1,16 @@
 import gurobipy as g
 from .stl import *
 
+import logging
+logger = logging.getLogger('STLMILP')
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(levelname)s %(module)s:%(lineno)d:%(funcName)s: %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.propagate = False
+
+logger.setLevel(logging.DEBUG)
+
 GRB = g.GRB
 
 def create_milp(name, minim=True):
@@ -237,6 +247,7 @@ def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
         xhist = []
 
     # Decision variables
+    logger.debug("Adding decision variables")
     x = {}
     for i in range(A.shape[0]):
         for j in range(-len(xhist), N):
@@ -246,7 +257,9 @@ def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
     m.update()
 
     # Dynamics
+    logger.debug("Adding dynamics")
     for i in range(A.shape[0]):
+        logger.debug("Adding row {}".format(i))
         for j in range(-len(xhist), N):
             if j < 0:
                 m.addConstr(x[label(l, i, j)] == xhist[len(xhist) + j][i])
