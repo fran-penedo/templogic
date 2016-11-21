@@ -145,7 +145,7 @@ def _stl_and_or(m, label, f, t, op):
         # I'm not gonna bother using the best bounds
         bounds = map(max, zip(*boundss))
         K = max(map(abs, bounds))
-        add = add_min_constr if op == "min" else add_max_constr
+        add = add_min_constr if op == "and" else add_max_constr
         y = add(m, label, xx, K, nnegative=False)[label]
         return y, bounds
 
@@ -241,6 +241,10 @@ def add_always_penalized(m, label, a, b, rho, K, obj, t=0):
 # Dynamic System Constraints
 def label(name, i, j):
     return name + "_" + str(i) + "_" + str(j)
+
+def unlabel(label):
+    sp = label.split("_")
+    return sp[0], int(sp[1]), int(sp[2])
 
 def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
     if xhist is None:
