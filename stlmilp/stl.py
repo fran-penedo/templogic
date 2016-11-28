@@ -180,6 +180,18 @@ class Formula(object):
         return self.__str__()
 
 
+def perturb(f, eps):
+    if f.op == EXPR:
+        f.args[0].perturb(eps)
+    elif f.op == NOT:
+        if f.args[0].op != EXPR:
+            raise Exception("Formula not in negation form")
+        else:
+            perturb(f.args[0], -eps)
+    else:
+        for arg in f.args:
+            perturb(arg, eps)
+
 
 # FIXME used fixed time intervals
 def robustness(formula, model, t=0):
