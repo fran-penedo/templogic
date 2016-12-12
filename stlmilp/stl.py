@@ -136,6 +136,42 @@ class Formula(object):
             EVENTUALLY: self._heventually
         }[self.op]()
 
+
+    def _shexpr(self):
+        return 0
+
+    def _shnot(self):
+        return 0
+
+    def _shand(self):
+        return min(map(lambda f: f.shorizon(), self.args))
+
+    def _shor(self):
+        return self._shand()
+
+    def _shalways(self):
+        return self.bounds[0] + self.args[0].shorizon()
+
+    def _shnext(self):
+        return 1 + self.args[0].shorizon()
+
+    def _sheventually(self):
+        return self._shalways()
+
+    def shorizon(self):
+        """
+        Computes the time horizon of the formula
+        """
+        return {
+            EXPR: self._shexpr,
+            NOT: self._shnot,
+            AND: self._shand,
+            OR: self._shor,
+            NEXT: self._shnext,
+            ALWAYS: self._shalways,
+            EVENTUALLY: self._sheventually
+        }[self.op]()
+
     def copy(self):
         return copy.deepcopy(self)
 
@@ -182,12 +218,12 @@ class Formula(object):
 
 def perturb(f, eps):
     if f.op == EXPR:
-        f.args[0].perturb(eps)
+        f.args[0].perturb(-eps)
     elif f.op == NOT:
         if f.args[0].op != EXPR:
             raise Exception("Formula not in negation form")
         else:
-            perturb(f.args[0], -eps)
+            perturb(f.args[0], eps)
     else:
         for arg in f.args:
             perturb(arg, eps)

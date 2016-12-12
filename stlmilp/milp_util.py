@@ -253,7 +253,7 @@ def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
     # Decision variables
     logger.debug("Adding decision variables")
     x = {}
-    for i in range(A.shape[0]):
+    for i in range(A.shape[0] + 2):
         for j in range(-len(xhist), N):
             labelx = label(l, i, j)
             x[labelx] = m.addVar(
@@ -262,17 +262,19 @@ def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
 
     # Dynamics
     logger.debug("Adding dynamics")
-    for i in range(A.shape[0]):
+    for i in range(A.shape[0] + 2):
         logger.debug("Adding row {}".format(i))
         for j in range(-len(xhist), N):
-            if j < 0:
+            if i == 0 or i == A.shape[0] + 1:
+                m.addConstr(x[label(l, i, j)] == x0[i])
+            elif j < 0:
                 m.addConstr(x[label(l, i, j)] == xhist[len(xhist) + j][i])
             elif j == 0:
                 m.addConstr(x[label(l, i, j)] == x0[i])
             else:
                 m.addConstr(x[label(l, i, j)] ==
-                            g.quicksum(A[i][k] * x[label(l, k, j - 1)]
-                                       for k in range(A.shape[0])) + b[i])
+                            g.quicksum(A[i-1][k] * x[label(l, k + 1, j - 1)]
+                                       for k in range(A.shape[0])) + b[i-1])
     m.update()
 
     return x
