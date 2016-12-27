@@ -246,7 +246,33 @@ def unlabel(label):
     sp = label.split("_")
     return sp[0], int(sp[1]), int(sp[2])
 
-def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
+def add_affsys_constr_x0(m, l, A, b, x0, N, xhist=None):
+    x = add_affsys_constr(m, l, A, b, N, xhist)
+    for j in range(1, N):
+        for i in [0, A.shape[0] + 1]:
+            m.addConstr(x[label(l, i, j)] == x0[i])
+    for i in range(A.shape[0] + 2):
+        m.addConstr(x[label(l, i, 0)] == x0[i])
+    return x
+
+def add_affsys_constr_x0_set(m, l, A, b, N, xpart, pset):
+    x = add_affsys_constr(m, l, A, b, N, None)
+
+    p0 = m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name='p0')
+    p1 = m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name='p1')
+
+    for i in range(pset.shape[0]):
+        m.addConstr(p0 * pset[i][0] + p1 * pset[i][1] <= pset[i][2])
+
+    for i in range(len(xpart)):
+        m.addConstr(x[label(l, i, 0)] == p0 * xpart[i] + p1)
+    for j in range(1, N):
+        for i in [0, A.shape[0] + 1]:
+            m.addConstr(x[label(l, i, j)] == p0 * xpart[i] + p1)
+
+    return x
+
+def add_affsys_constr(m, l, A, b, N, xhist=None):
     if xhist is None:
         xhist = []
 
@@ -262,16 +288,12 @@ def add_affsys_constr(m, l, A, b, x0, N, xhist=None):
 
     # Dynamics
     logger.debug("Adding dynamics")
-    for i in range(A.shape[0] + 2):
+    for i in range(1, A.shape[0] + 1):
         logger.debug("Adding row {}".format(i))
         for j in range(-len(xhist), N):
-            if i == 0 or i == A.shape[0] + 1:
-                m.addConstr(x[label(l, i, j)] == x0[i])
-            elif j < 0:
+            if j < 0:
                 m.addConstr(x[label(l, i, j)] == xhist[len(xhist) + j][i])
-            elif j == 0:
-                m.addConstr(x[label(l, i, j)] == x0[i])
-            else:
+            elif j > 0:
                 m.addConstr(x[label(l, i, j)] ==
                             g.quicksum(A[i-1][k] * x[label(l, k + 1, j - 1)]
                                        for k in range(A.shape[0])) + b[i-1])
