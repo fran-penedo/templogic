@@ -218,7 +218,7 @@ class Formula(object):
 
 def perturb(f, eps):
     if f.op == EXPR:
-        f.args[0].perturb(-eps)
+        f.args[0].perturb(eps)
     elif f.op == NOT:
         if f.args[0].op != EXPR:
             raise Exception("Formula not in negation form")
