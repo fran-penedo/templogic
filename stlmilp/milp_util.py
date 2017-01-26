@@ -255,6 +255,8 @@ def add_affsys_constr_x0(m, l, A, b, x0, N, xhist=None):
         m.addConstr(x[label(l, i, 0)] == x0[i])
     return x
 
+
+
 def add_affsys_constr_x0_set(m, l, A, b, N, xpart, pset):
     x = add_affsys_constr(m, l, A, b, N, None)
 
@@ -297,6 +299,68 @@ def add_affsys_constr(m, l, A, b, N, xhist=None):
                 m.addConstr(x[label(l, i, j)] ==
                             g.quicksum(A[i-1][k] * x[label(l, k + 1, j - 1)]
                                        for k in range(A.shape[0])) + b[i-1])
+    m.update()
+
+    return x
+
+
+
+def add_newmark_constr_x0(m, l, M, K, F, x0, dt, N, xhist=None):
+    x = add_newmark_constr(m, l, M, K, F, dt, N, xhist)
+    for j in range(1, N):
+        for i in [0, M.shape[0] + 1]:
+            m.addConstr(x[label(l, i, j)] == x0[i])
+            m.addConstr(x[label('d' + l, i, j)] == x0[i + M.shape[0] + 2])
+    for i in range(A.shape[0] + 2):
+        m.addConstr(x[label(l, i, 0)] == x0[i])
+        m.addConstr(x[label('d' + l, i, 0)] == x0[i + M.shape[0] + 2])
+    return x
+
+def add_newmark_constr(m, l, M, K, F, dt, N, xhist=None):
+    if xhist is None:
+        xhist = []
+
+    # Decision variables
+    logger.debug("Adding decision variables")
+    x = {}
+    for i in range(A.shape[0] + 2):
+        for j in range(-len(xhist), N):
+            labelx = label(l, i, j)
+            x[labelx] = m.addVar(
+                obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=labelx)
+            labelv = label('d' + l, i, j)
+            x[labelv] = m.addVar(
+                obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=labelv)
+            labeltv = label('td' + l, i, j)
+            x[labeltv] = m.addVar(
+                obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=labeltv)
+            labela = label('dd' + l, i, j)
+            x[labela] = m.addVar(
+                obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=labela)
+
+    m.update()
+
+    # Dynamics
+    logger.debug("Adding dynamics")
+    for i in range(1, A.shape[0] + 1):
+        logger.debug("Adding row {}".format(i))
+        for j in range(-len(xhist), N):
+            if j < 0:
+                m.addConstr(x[label(l, i, j)] == xhist[len(xhist) + j][i])
+            elif j > 0:
+                # tv = v + .5 * dt * a
+                m.addConstr(x[label('td' + l, i, j)] == x[label('d' + l, i, j - 1)] +
+                            .5 * dt * x[label('dd' + l, i, j - 1)])
+                # d = d + dt * tv
+                m.addConstr(x[label(l, i, j)] == x[label(l, i, j - 1)] +
+                            dt * x[label('td' + l, i, j)])
+                # M a = F - Kd
+                m.addConstr(g.quicksum(M[i - 1, k] * x[label('dd' + l, k + 1, j)]
+                                       for k in range(M.shape[0])) ==
+                            F[i] - g.quicksum(K[i - 1, k] * x[label(l, k + 1, j)]))
+                # v = tv + .5 * dt * a
+                m.addConstr(x[label('d' + l, i, j)] == x[label('d' + l, i, j)] +
+                            .5 * dt * x[label('dd' + l, i, j)])
     m.update()
 
     return x
