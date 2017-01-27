@@ -307,13 +307,14 @@ def add_affsys_constr(m, l, A, b, N, xhist=None):
 
 def add_newmark_constr_x0(m, l, M, K, F, x0, dt, N, xhist=None):
     x = add_newmark_constr(m, l, M, K, F, dt, N, xhist)
-    for j in range(1, N):
-        for i in [0, M.shape[0] + 1]:
-            m.addConstr(x[label(l, i, j)] == x0[i])
-            m.addConstr(x[label('d' + l, i, j)] == x0[i + M.shape[0] + 2])
-    for i in range(A.shape[0] + 2):
-        m.addConstr(x[label(l, i, 0)] == x0[i])
-        m.addConstr(x[label('d' + l, i, 0)] == x0[i + M.shape[0] + 2])
+    d0, v0 = x0
+    # for j in range(1, N):
+    #     for i in [0, M.shape[0] + 1]:
+    #         m.addConstr(x[label(l, i, j)] == d0[i])
+    #         m.addConstr(x[label('d' + l, i, j)] == v0[i])
+    for i in range(M.shape[0]):
+        m.addConstr(x[label(l, i, 0)] == d0[i])
+        m.addConstr(x[label('d' + l, i, 0)] == v0[i])
     return x
 
 def add_newmark_constr(m, l, M, K, F, dt, N, xhist=None):
@@ -323,7 +324,7 @@ def add_newmark_constr(m, l, M, K, F, dt, N, xhist=None):
     # Decision variables
     logger.debug("Adding decision variables")
     x = {}
-    for i in range(A.shape[0] + 2):
+    for i in range(M.shape[0]):
         for j in range(-len(xhist), N):
             labelx = label(l, i, j)
             x[labelx] = m.addVar(
@@ -342,11 +343,20 @@ def add_newmark_constr(m, l, M, K, F, dt, N, xhist=None):
 
     # Dynamics
     logger.debug("Adding dynamics")
-    for i in range(1, A.shape[0] + 1):
+    for i in range(M.shape[0]):
         logger.debug("Adding row {}".format(i))
         for j in range(-len(xhist), N):
             if j < 0:
                 m.addConstr(x[label(l, i, j)] == xhist[len(xhist) + j][i])
+            elif j == 0:
+                # M a = F - Kd
+                if M[i,i] == 0:
+                    m.addConstr(x[label('dd' + l, i, j)] == 0)
+                else:
+                    m.addConstr(g.quicksum(M[i, k] * x[label('dd' + l, k, j)]
+                                        for k in range(M.shape[0])) ==
+                                F[i] - g.quicksum(K[i, k] * x[label(l, k, j)]
+                                                for k in range(K.shape[0])))
             elif j > 0:
                 # tv = v + .5 * dt * a
                 m.addConstr(x[label('td' + l, i, j)] == x[label('d' + l, i, j - 1)] +
@@ -355,11 +365,15 @@ def add_newmark_constr(m, l, M, K, F, dt, N, xhist=None):
                 m.addConstr(x[label(l, i, j)] == x[label(l, i, j - 1)] +
                             dt * x[label('td' + l, i, j)])
                 # M a = F - Kd
-                m.addConstr(g.quicksum(M[i - 1, k] * x[label('dd' + l, k + 1, j)]
-                                       for k in range(M.shape[0])) ==
-                            F[i] - g.quicksum(K[i - 1, k] * x[label(l, k + 1, j)]))
+                if M[i,i] == 0:
+                    m.addConstr(x[label('dd' + l, i, j)] == 0)
+                else:
+                    m.addConstr(g.quicksum(M[i, k] * x[label('dd' + l, k, j)]
+                                        for k in range(M.shape[0])) ==
+                                F[i] - g.quicksum(K[i, k] * x[label(l, k, j)]
+                                                for k in range(K.shape[0])))
                 # v = tv + .5 * dt * a
-                m.addConstr(x[label('d' + l, i, j)] == x[label('d' + l, i, j)] +
+                m.addConstr(x[label('d' + l, i, j)] == x[label('td' + l, i, j)] +
                             .5 * dt * x[label('dd' + l, i, j)])
     m.update()
 
