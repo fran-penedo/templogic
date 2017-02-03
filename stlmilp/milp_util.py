@@ -58,15 +58,12 @@ def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
     y[label] = m.addVar(lb=0 if nnegative else -K, ub=K, name=label)
 
     if len(args) == 0:
-        m.update()
         m.addConstr(y[label] == K)
 
     else:
         for i in range(len(args)):
             l = delta_label(label, i)
             y[l] = m.addVar(vtype=g.GRB.BINARY, name=l)
-
-        m.update()
 
         for i in range(len(args)):
             x = delta_label(label, i)
@@ -114,7 +111,6 @@ def _stl_expr(m, label, f, t):
     if expr is not None:
         bounds = f.args[0].bounds
         y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
-        m.update()
         m.addConstr(y == expr)
         return y, bounds
     else:
@@ -125,7 +121,6 @@ def _stl_not(m, label, f, t):
     x, bounds = add_stl_constr(m, label + "_not", f.args[0], t)
     if x is not None:
         y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
-        m.update()
         m.addConstr(y == -x)
         return y, bounds
     else:
@@ -257,20 +252,26 @@ def add_affsys_constr_x0(m, l, A, b, x0, N, xhist=None):
 
 
 
-def add_affsys_constr_x0_set(m, l, A, b, N, xpart, pset):
+def add_affsys_constr_x0_set(m, l, A, b, N, xpart, pset, f):
     x = add_affsys_constr(m, l, A, b, N, None)
 
-    p0 = m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name='p0')
-    p1 = m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name='p1')
+    # p0 = m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name='p0')
+    # p1 = m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name='p1')
+    p = [m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=label('p', i, 0))
+          for i in range(pset.shape[1] - 1)]
+    m.update()
 
     for i in range(pset.shape[0]):
-        m.addConstr(p0 * pset[i][0] + p1 * pset[i][1] <= pset[i][2])
+        m.addConstr(g.quicksum(
+            pset[i][j] * p[j] for j in range(pset.shape[1] - 1)) <= pset[i][-1])
+    # for i in range(pset.shape[0]):
+    #     m.addConstr(p0 * pset[i][0] + p1 * pset[i][1] <= pset[i][2])
 
     for i in range(len(xpart)):
-        m.addConstr(x[label(l, i, 0)] == p0 * xpart[i] + p1)
+        m.addConstr(x[label(l, i, 0)] == f(xpart[i], p))
     for j in range(1, N):
         for i in [0, A.shape[0] + 1]:
-            m.addConstr(x[label(l, i, j)] == p0 * xpart[i] + p1)
+            m.addConstr(x[label(l, i, j)] == f(xpart[i], p))
 
     return x
 
@@ -304,6 +305,29 @@ def add_affsys_constr(m, l, A, b, N, xhist=None):
     return x
 
 
+def add_newmark_constr_x0_set(m, l, M, K, F, xpart, pset, f, dt, N):
+    x = add_newmark_constr(m, l, M, K, F, dt, N, None)
+
+    dset, vset = pset
+    fd, fv = f
+
+    pd = [m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=label('pd', i, 0))
+          for i in range(dset.shape[1] - 1)]
+    pv = [m.addVar(obj=0, lb=-g.GRB.INFINITY, ub=g.GRB.INFINITY, name=label('pv', i, 0))
+          for i in range(vset.shape[1] - 1)]
+
+    for i in range(dset.shape[0]):
+        m.addConstr(g.quicksum(
+            pd[j] * dset[i][j] for j in range(dset.shape[1] - 1)) <= dset[i][-1])
+    for i in range(vset.shape[0]):
+        m.addConstr(g.quicksum(
+            pv[j] * vset[i][j] for j in range(vset.shape[1] - 1)) <= vset[i][-1])
+
+    for i in range(len(xpart)):
+        m.addConstr(x[label(l, i, 0)] == fd(xpart[i], pd))
+        m.addConstr(x[label('d' + l, i, 0)] == fv(xpart[i], pv))
+
+    return x
 
 def add_newmark_constr_x0(m, l, M, K, F, x0, dt, N, xhist=None):
     x = add_newmark_constr(m, l, M, K, F, dt, N, xhist)

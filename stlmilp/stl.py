@@ -108,7 +108,8 @@ class Formula(object):
         return 0
 
     def _hand(self):
-        return max(map(lambda f: f.horizon(), self.args))
+        # return max(map(lambda f: f.horizon(), self.args))
+        return max([f.horizon() for f in self.args])
 
     def _hor(self):
         return self._hand()
@@ -144,7 +145,9 @@ class Formula(object):
         return 0
 
     def _shand(self):
-        return min(map(lambda f: f.shorizon(), self.args))
+        # return min(map(lambda f: f.shorizon(), self.args))
+        return min([f.shorizon() for f in self.args])
+
 
     def _shor(self):
         return self._shand()
