@@ -52,7 +52,7 @@ def _stl_next(m, label, f, t):
 def _stl_always_eventually(m, label, f, t, op):
     xx = []
     boundss = []
-    for i in range(f.bounds[0], f.bounds[1] + 1):
+    for i in range(f.bounds[0], f.bounds[1]):
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
                                    t + i)
         if x is not None:

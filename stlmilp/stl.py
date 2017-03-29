@@ -73,7 +73,9 @@ class Signal(object):
         vs = [model.getVarByName(l(t)) for l in self.labels]
         # TODO Get rid of any
         if any(var is None for var in vs):
-            return None
+            raise Exception(("Couldn't find all variables in model.\n"
+                            "Labels: {}\n"
+                            "vs: {}").format([l(t) for l in self.labels], vs))
         else:
             return self.f(vs)
 
