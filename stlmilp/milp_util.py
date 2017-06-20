@@ -91,3 +91,44 @@ def add_penalty(m, label, var, obj):
     m.setAttr("OBJ", [var], [-obj])
     y = add_abs_var(m, label, var, obj)
     return y
+
+def add_set_flag(m, label, x_var, A, b, K):
+    if len(A) == 1:
+        delta = m.addVar(vtype=g.GRB.BINARY, name=label)
+        deltas = [delta]
+    else:
+        deltas = [m.addVar(vtype=g.GRB.BINARY, name=delta_label(label, i))
+                for i in range(len(A))]
+        delta = m.addVar(vtype=g.GRB.BINARY, name=label)
+
+    for i in range(len(A)):
+        m.addConstr(g.quicksum(A[i][j] * x_var[j] for j in range(len(x_var)))
+                    - deltas[i] * K <= b[i])
+        m.addConstr(g.quicksum(A[i][j] * x_var[j] for j in range(len(x_var)))
+                    + (1 - deltas[i]) * K >= b[i])
+    if len(A) > 1:
+        for i in range(len(A)):
+            m.addConstr(delta >= deltas[i])
+        m.addConstr(delta <= g.quicksum(deltas))
+
+    return delta
+
+def add_binary_switch(m, label, v1, v2, delta, K):
+    y = m.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name=label)
+
+    m.addConstr(y <= v1 + delta * K)
+    m.addConstr(y >= v1 - delta * K)
+
+    m.addConstr(y <= v2 + (1 - delta) * K)
+    m.addConstr(y >= v2 - (1 - delta) * K)
+
+    return y
+
+def add_set_switch(m, label, sets, vs, x_var, K):
+    if len(sets) != 2:
+        raise NotImplementedError("Only implemented for two complementary sets")
+
+    delta = add_set_flag(m, label + "_delta", x_var, sets[0][0], sets[0][1], K)
+    y = add_binary_switch(m, label, vs[0], vs[1], delta, K)
+    return y
+
