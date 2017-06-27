@@ -205,17 +205,26 @@ class Formula(object):
         self._bounds = value
 
     def __str__(self):
-        return {
-            EXPR: "(%s)" % str(self.args[0]),
-            NOT: "~ %s" % str(self.args[0]),
-            AND: "(%s)" % " ^ ".join([str(arg) for arg in self.args]),
-            OR: "(%s)" % " v ".join([str(arg) for arg in self.args]),
-            NEXT: "O%s" % str(self.args[0]),
-            ALWAYS: "G_[%.2f, %.2f] %s" % \
-                (self.bounds[0], self.bounds[1], str(self.args[0])),
-            EVENTUALLY: "F_[%.2f, %.2f] %s" % \
-                (self.bounds[0], self.bounds[1], str(self.args[0]))
-        }[self.op]
+        if self.op == EXPR:
+            string = "(%s)" % str(self.args[0])
+        elif self.op == NOT:
+            string = "~ %s" % str(self.args[0])
+        elif self.op == AND:
+            string = "(%s)" % " ^ ".join([str(arg) for arg in self.args])
+        elif self.op == OR:
+            string = "(%s)" % " v ".join([str(arg) for arg in self.args])
+        elif self.op == NEXT:
+            string = "O%s" % str(self.args[0])
+        elif self.op == ALWAYS:
+            string = "G_[%.2f, %.2f] %s" % \
+                                (self.bounds[0], self.bounds[1], str(self.args[0]))
+        elif self.op == EVENTUALLY:
+            string = "F_[%.2f, %.2f] %s" % \
+                                (self.bounds[0], self.bounds[1], str(self.args[0]))
+        else:
+            raise Exception("Unrecognized op code: {}".format(self.op))
+
+        return string
 
     def __repr__(self):
         return self.__str__()
