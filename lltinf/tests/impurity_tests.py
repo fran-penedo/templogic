@@ -1,7 +1,7 @@
-from impurity import *
-from lltinf import Traces
-from llt import make_llt_primitives, LLTFormula
-from stl import LE
+from lltinf.impurity import *
+from lltinf.inference import Traces
+from lltinf.llt import make_llt_primitives, LLTFormula
+from stlmilp.stl import LE
 import numpy as np
 
 

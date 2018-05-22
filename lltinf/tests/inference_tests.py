@@ -1,4 +1,4 @@
-from lltinf import *
+from lltinf.inference import *
 import pprint
 
 def lltinf_simple_test():

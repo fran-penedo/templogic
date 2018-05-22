@@ -1,4 +1,4 @@
-from llt import *
+from lltinf.llt import *
 import pprint
 import numpy as np
 

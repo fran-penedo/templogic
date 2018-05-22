@@ -1,4 +1,4 @@
-from validate import *
+from lltinf.validate import *
 import numpy as np
 import numpy.testing as test
 

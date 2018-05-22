@@ -6,9 +6,9 @@ Contains the decision tree construction and related definitions.
 Author: Francisco Penedo (franp@bu.edu)
 
 """
-from stl import Formula, AND, OR, NOT, satisfies, robustness
-from impurity import optimize_inf_gain
-from llt import make_llt_primitives, split_groups, SimpleModel
+from stlmilp.stl import Formula, AND, OR, NOT, satisfies, robustness
+from lltinf.impurity import optimize_inf_gain
+from lltinf.llt import make_llt_primitives, split_groups, SimpleModel
 import numpy as np
 
 class Traces(object):

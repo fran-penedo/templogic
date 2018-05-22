@@ -7,8 +7,8 @@ Author: Francisco Penedo (franp@bu.edu)
 
 """
 from scipy import optimize
-from llt import set_llt_pars, SimpleModel, split_groups
-from stl import robustness
+from lltinf.llt import set_llt_pars, SimpleModel, split_groups
+from stlmilp.stl import robustness
 import numpy as np
 import math
 

@@ -10,13 +10,13 @@ import numpy as np
 from scipy.io import loadmat, savemat
 #import matplotlib.pyplot as plt
 from os import path
-import validate
 import argparse
 import os
 
-from lltinf import perfect_stop, depth_stop, lltinf, Traces
-from llt import llt_parser, SimpleModel
-from stl import satisfies
+from lltinf.inference import perfect_stop, depth_stop, lltinf, Traces
+from lltinf.llt import llt_parser, SimpleModel
+import lltinf.validate as validate
+from stlmilp.stl import satisfies
 
 def load_traces(filename):
     """

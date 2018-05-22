@@ -1,0 +1,26 @@
+session_name: lltinf
+start_directory: ./
+windows:
+    - window_name: main
+      options:
+          main-pane-width: 25
+      layout: acf2,272x69,0,0{199x69,0,0,26,72x69,200,0[72x34,200,0,27,72x34,200,35,28]}
+      shell_command_before: workon llt-inf
+      focus: true
+      panes:
+          - shell_command:
+              - vim
+            focus: true
+          - git status
+          - ipython2
+    - window_name: sec
+      options:
+          main-pane-width: 25
+      layout: acf2,272x69,0,0{199x69,0,0,26,72x69,200,0[72x34,200,0,27,72x34,200,35,28]}
+      shell_command_before: workon llt-inf
+      panes:
+          - shell_command:
+              - pane
+            focus: true
+          - pane
+          - pane

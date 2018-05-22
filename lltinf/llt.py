@@ -4,8 +4,8 @@ Module with depth 2 p-stl definitions
 Author: Francisco Penedo (franp@bu.edu)
 
 """
-import stl
-from stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
+import stlmilp.stl as stl
+from stlmilp.stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
 # from bisect import bisect_left
 import numpy as np
@@ -34,9 +34,9 @@ class LLTSignal(Signal):
         self._pi = pi
 
         # labels transform a time into a pair [j, t]
-        self._labels = [lambda t: [self._index, t]]
+        self.labels = [lambda t: [self._index, t]]
         # transform to x_j - pi >= 0
-        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
+        self.f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
 
     def __deepcopy__(self, memo):
         return LLTSignal(self.index, self.op, self.pi)
@@ -185,8 +185,8 @@ class SimpleModel(object):
 #             0)
         '''FIXME: Assumes that sampling rate is constant, i.e. the sampling
         times are in arithmetic progression with rate self._tinter'''
-        tindex = min(
-            np.floor(indices[1]/self._tinter), self._lsignals - 1)
+        tindex = int(min(
+            np.floor(indices[1]/self._tinter), self._lsignals - 1))
         # assert 0 <= tindex <= len(self._signals[-1]), \
         #        'Invalid query outside the time domain of the trace! %f' % tindex
         return self._signals[indices[0]][tindex]
