@@ -7,7 +7,10 @@ def lltinf_simple_test():
         [[1,2,3,4], [1,2,3,5], [1,2,3,4]]
     ], [1,-1])
 
-    print lltinf(traces)
+    lltinf = LLTInf()
+    lltinf.fit(traces)
+
+    print lltinf.tree
 
 
 

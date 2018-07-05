@@ -214,7 +214,7 @@ class LLTInf(object):
     TODO: This should also be parameterized by make_llt_primitives
 
     """
-    def __init__(self, depth, optimize_impurity=optimize_inf_gain,
+    def __init__(self, depth=1, optimize_impurity=optimize_inf_gain,
                  stop_condition=None, redo_after_failed=1):
         self.depth = depth
         self.optimize_impurity = optimize_impurity
