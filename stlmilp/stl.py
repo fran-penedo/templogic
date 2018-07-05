@@ -79,6 +79,11 @@ class Signal(object):
         else:
             return self.f(vs)
 
+    def __str__(self):
+        return "EXP"
+
+    def __repr__(self):
+        return self.__str__()
 
 class Formula(object):
     """
@@ -301,6 +306,12 @@ def num_parser():
                   Optional(T_DOT + Word(nums)) +
                   Optional(T_EXP + Optional(T_MIN ^ T_PLU) + Word(nums)))
     num = num.setParseAction(lambda t: float(t[0]))
+    return num
+
+def int_parser():
+    T_MIN = Literal("-")
+    num = Combine(Optional(T_MIN) + Word(nums))
+    num = num.setParseAction(lambda t: int(t[0]))
     return num
 
 

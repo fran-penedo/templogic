@@ -60,13 +60,13 @@ def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
             x = delta_label(label, i)
             if op == 'min':
                 m.addConstr(y[label] <= args[i])
-                m.addConstr(y[label] >= args[i] - y[x] * K)
+                m.addConstr(y[label] >= args[i] - (1 - y[x]) * K)
             else:
                 m.addConstr(y[label] >= args[i])
-                m.addConstr(y[label] <= args[i] + y[x] * K)
+                m.addConstr(y[label] <= args[i] + (1 - y[x]) * K)
 
         m.addConstr(g.quicksum([y[delta_label(label, i)]
-                                for i in range(len(args))]) == len(args) - 1)
+                                for i in range(len(args))]) == 1)
 
     return y
 
@@ -131,4 +131,5 @@ def add_set_switch(m, label, sets, vs, x_var, K):
     delta = add_set_flag(m, label + "_delta", x_var, sets[0][0], sets[0][1], K)
     y = add_binary_switch(m, label, vs[0], vs[1], delta, K)
     return y
+
 

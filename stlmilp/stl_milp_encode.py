@@ -1,5 +1,9 @@
+import logging
+
 import stl
-from milp_util import add_min_constr, add_max_constr, add_penalty
+from milp_util import add_min_constr, add_max_constr, add_penalty, create_milp, GRB
+
+logger = logging.getLogger(__name__)
 
 def _stl_expr(m, label, f, t):
     expr = f.args[0].signal(m, t)
@@ -52,7 +56,12 @@ def _stl_next(m, label, f, t):
 def _stl_always_eventually(m, label, f, t, op):
     xx = []
     boundss = []
-    for i in range(f.bounds[0], f.bounds[1]):
+    if f.bounds[0] == f.bounds[1]:
+        b1 = f.bounds[0]
+        b2 = f.bounds[1] + 1
+    else:
+        b1, b2 = f.bounds
+    for i in range(b1, b2):
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
                                    t + i)
         if x is not None:
@@ -110,4 +119,50 @@ def add_always_penalized(m, label, a, b, rho, K, obj, t=0):
     y = add_always_constr(m, label, a, b, rho, K, t)
     add_penalty(m, label, y, obj)
     return y
+
+
+def build_and_solve(
+    spec, model_encode_f, spec_obj,
+    outputflag=None, numericfocus=None, threads=4, log_files=True):
+    # print spec
+    if spec is not None:
+        hd = max(0, spec.horizon())
+    else:
+        hd = 0
+
+    m = create_milp("rhc_system")
+    logger.debug("Adding system constraints")
+    model_encode_f(m, hd)
+    # sys_milp.add_sys_constr_x0(m, "d", system, d0, hd, None)
+    if spec is not None:
+        logger.debug("Adding STL constraints")
+        fvar, vbds = add_stl_constr(m, "spec", spec)
+        fvar.setAttr("obj", spec_obj)
+
+    if outputflag is not None:
+        # 0
+        m.params.outputflag = outputflag
+    if numericfocus is not None:
+        # 3
+        m.params.numericfocus = numericfocus
+    if threads is not None:
+        # 4
+        m.params.threads = threads
+    m.update()
+    if log_files:
+        m.write("out.lp")
+    logger.debug(
+        "Optimizing MILP with {} variables ({} binary) and {} constraints".format(
+            m.numvars, m.numbinvars, m.numconstrs))
+    m.optimize()
+    logger.debug("Finished optimizing")
+    if log_files:
+        f = open("out_vars.txt", "w")
+        for v in m.getVars():
+            print >> f, v
+        f.close()
+
+    if m.status != GRB.status.OPTIMAL:
+        logger.warning("MILP returned status: {}".format(m.status))
+    return m
 
