@@ -6,10 +6,15 @@ Contains the decision tree construction and related definitions.
 Author: Francisco Penedo (franp@bu.edu)
 
 """
+import logging
+
+import numpy as np
+
 from stlmilp.stl import Formula, AND, OR, NOT, satisfies, robustness
 from lltinf.impurity import optimize_inf_gain
 from lltinf.llt import make_llt_primitives, split_groups, SimpleModel
-import numpy as np
+
+logger = logging.getLogger(__name__)
 
 class Traces(object):
     """
@@ -23,8 +28,8 @@ class Traces(object):
         labels : list of labels
                  Each label should be either 1 or -1
         """
-        self._signals = [] if signals is None else np.array(signals, dtype=float)
-        self._labels = [] if labels is None else labels
+        self._signals = np.array([], dtype=float) if signals is None else np.array(signals, dtype=float)
+        self._labels = [] if labels is None else list(labels)
 
     @property
     def labels(self):
@@ -54,12 +59,16 @@ class Traces(object):
         """
         return zip(*self.as_list())
 
+    def add_traces(self, signals, labels):
+        self._signals = np.vstack([self._signals, signals])
+        self._labels.extend(labels)
+
+
 class DTree(object):
     """
     Decission tree recursive structure
 
     """
-
     def __init__(self, primitive, traces, robustness=None,
                  left=None, right=None):
         """
@@ -73,11 +82,19 @@ class DTree(object):
         right : a DTree object. Optional
                 The subtree corresponding to a sat result to this node's test
         """
-        self._primitive = primitive
-        self._traces = traces
-        self._robustness = robustness
+        self.primitive = primitive
+        self.traces = traces
+        self.robustness = robustness
         self._left = left
         self._right = right
+        self.parent = None
+
+    def set_tree(self, tree):
+        self.primitive = tree.primitive
+        self.traces = tree.traces
+        self.robustness = tree.robustness
+        self.left = tree.left
+        self.right = tree.right
 
     def classify(self, signal):
         """
@@ -117,6 +134,25 @@ class DTree(object):
         else:
             return left
 
+    def add_signal(self, signal, label):
+        return self._add_signal(signal, label, np.Inf)
+
+    def _add_signal(self, signal, label, rho):
+        self.traces.add_traces([signal], [label])
+        self.robustness = np.r_[self.robustness, rho]
+        prim_rho = robustness(self.primitive, SimpleModel(signal))
+        rho = np.amin([np.abs(prim_rho), rho])
+        if prim_rho >= 0:
+            if self.left is not None:
+                return self.left._add_signal(signal, label, rho)
+            else:
+                return self
+        else:
+            if self.right is not None:
+                return self.right._add_signal(signal, label, rho)
+            else:
+                return self
+
     @property
     def left(self):
         return self._left
@@ -124,6 +160,8 @@ class DTree(object):
     @left.setter
     def left(self, value):
         self._left = value
+        if value is not None:
+            value.parent = self
 
     @property
     def right(self):
@@ -132,27 +170,17 @@ class DTree(object):
     @right.setter
     def right(self, value):
         self._right = value
+        if value is not None:
+            value.parent = self
 
-    @property
-    def primitive(self):
-        return self._primitive
-
-    @primitive.setter
-    def primitive(self, value):
-        self._primitive = value
-
-    @property
-    def robustness(self):
-        return self._robustness
-
-    @robustness.setter
-    def robustness(self, value):
-        self._robustness = value
+    def depth(self):
+        if self.parent is None:
+            return 0
+        else:
+            return 1 + self.parent.depth()
 
 
-# Main inference function
-def lltinf(traces, depth=1,
-           optimize_impurity=optimize_inf_gain, stop_condition=None, disp=False):
+class LLTInf(object):
     """
     Obtains a decision tree that classifies the given labeled traces.
 
@@ -186,80 +214,127 @@ def lltinf(traces, depth=1,
     TODO: This should also be parameterized by make_llt_primitives
 
     """
-    np.seterr(all='ignore')
-    if stop_condition is None:
-        stop_condition = [perfect_stop]
+    def __init__(self, depth, optimize_impurity=optimize_inf_gain,
+                 stop_condition=None, redo_after_failed=1):
+        self.depth = depth
+        self.optimize_impurity = optimize_impurity
+        if stop_condition is None:
+            self.stop_condition = [perfect_stop]
+        else:
+            self.stop_condition = stop_condition
+        self.tree = None
+        self.redo_after_failed = redo_after_failed
+        self._partial_add = 0
 
-    return lltinf_(traces, None, depth, optimize_impurity, stop_condition, disp)
+    def fit(self, traces, disp=False):
+        np.seterr(all='ignore')
+        self.tree = self._lltinf(traces, None, self.depth, disp=disp)
+        return self
 
-def lltinf_(traces, rho, depth, optimize_impurity, stop_condition, disp=False):
-    """
-    Recursive call for the decision tree construction.
+    def fit_partial(self, traces, disp=False):
+        if self.tree is None:
+            return self.fit(traces, disp=disp)
+        else:
+            preds = self.predict(traces.signals)
+            failed = set()
+            for i in range(len(preds)):
+                leaf = self.tree.add_signal(traces.signals[i], traces.labels[i])
+                if preds[i] != traces.labels[i]:
+                    failed.add(leaf)
 
-    See lltinf for information on similar arguments.
+            # logger.debug("Failed set: {}".format(failed))
 
-    rho : list of numerics
-          List of robustness values for each trace up until the current node
-    depth : integer
-            Maximum depth to be reached. Decrements for each recursive call
-    """
-    args = locals().copy()
-    # Stopping condition
-    if any([stop(args) for stop in stop_condition]):
-        return None
+            self._partial_add += len(failed)
+            if self._partial_add // self.redo_after_failed > 0:
+                # logger.debug("Redoing tree")
+                self._partial_add = 0
+                return self.fit(self.tree.traces, disp=disp)
+            else:
+                for leaf in failed:
+                    tree = self._lltinf(leaf.traces, leaf.robustness,
+                                        self.depth - leaf.depth(), disp=disp)
+                    leaf.set_tree(tree)
 
-    # Find primitive using impurity measure
-    primitives = make_llt_primitives(traces.signals)
-    primitive, impurity = _find_best_primitive(traces, primitives, rho,
-                                              optimize_impurity, disp)
-    if disp:
-        print primitive
+                return self
 
-    # Classify using best primitive and split into groups
-    tree = DTree(primitive, traces)
-    prim_rho = [robustness(primitive, SimpleModel(s)) for s in traces.signals]
-    if rho is None:
-        rho = [np.inf for i in traces.labels]
-    # [prim_rho, rho, signals, label]
-    sat_, unsat_ = split_groups(zip(prim_rho, rho, *traces.as_list()),
-        lambda x: x[0] >= 0)
+    def predict(self, signals):
+        if self.tree is not None:
+            return np.array([self.tree.classify(s) for s in signals])
+        else:
+            raise ValueError("Model not fit")
 
-    # Switch sat and unsat if labels are wrong. No need to negate prim rho since
-    # we use it in absolute value later
-    if len([t for t in sat_ if t[3] >= 0]) < \
-        len([t for t in unsat_ if t[3] >= 0]):
-        sat_, unsat_ = unsat_, sat_
-        tree.primitive = Formula(NOT, [tree.primitive])
+    def get_formula(self):
+        if self.tree is not None:
+            return self.tree.get_formula()
+        else:
+            raise ValueError("Model not fit")
 
-    # No further classification possible
-    if len(sat_) == 0 or len(unsat_) == 0:
-        return None
+    def _lltinf(self, traces, rho, depth, disp=False):
+        """
+        Recursive call for the decision tree construction.
 
-    # Redo data structures
-    sat, unsat = [(Traces(*group[2:]),
-                   np.amin([np.abs(group[0]), group[1]], 0))
-                   for group in [zip(*sat_), zip(*unsat_)]]
+        See lltinf for information on similar arguments.
 
-    # Recursively build the tree
-    tree.left = lltinf_(sat[0], sat[1], depth - 1,
-                        optimize_impurity, stop_condition)
-    tree.right = lltinf_(unsat[0], unsat[1], depth - 1,
-                         optimize_impurity, stop_condition)
+        rho : list of numerics
+            List of robustness values for each trace up until the current node
+        depth : integer
+                Maximum depth to be reached. Decrements for each recursive call
+        """
+        # Stopping condition
+        if any([stop(self, traces, rho, depth) for stop in self.stop_condition]):
+            return None
 
-    return tree
+        # Find primitive using impurity measure
+        primitives = make_llt_primitives(traces.signals)
+        primitive, impurity = _find_best_primitive(traces, primitives, rho,
+                                                self.optimize_impurity, disp)
+        if disp:
+            print primitive
 
-def perfect_stop(kwargs):
+        # Classify using best primitive and split into groups
+        prim_rho = [robustness(primitive, SimpleModel(s)) for s in traces.signals]
+        if rho is None:
+            rho = [np.inf for i in traces.labels]
+        tree = DTree(primitive, traces, rho)
+        # [prim_rho, rho, signals, label]
+        sat_, unsat_ = split_groups(zip(prim_rho, rho, *traces.as_list()),
+            lambda x: x[0] >= 0)
+
+        # Switch sat and unsat if labels are wrong. No need to negate prim rho since
+        # we use it in absolute value later
+        if len([t for t in sat_ if t[3] >= 0]) < \
+            len([t for t in unsat_ if t[3] >= 0]):
+            sat_, unsat_ = unsat_, sat_
+            tree.primitive = Formula(NOT, [tree.primitive])
+
+        # No further classification possible
+        if len(sat_) == 0 or len(unsat_) == 0:
+            return None
+
+        # Redo data structures
+        sat, unsat = [(Traces(*group[2:]),
+                    np.amin([np.abs(group[0]), group[1]], 0))
+                    for group in [zip(*sat_), zip(*unsat_)]]
+
+        # Recursively build the tree
+        tree.left = self._lltinf(sat[0], sat[1], depth - 1)
+        tree.right = self._lltinf(unsat[0], unsat[1], depth - 1)
+
+        return tree
+
+
+def perfect_stop(lltinf, traces, rho, depth):
     """
     Returns True if all traces are equally labeled.
     """
-    return all([l > 0 for l in kwargs['traces'].labels]) or \
-        all([l <= 0 for l in kwargs['traces'].labels])
+    return all([l > 0 for l in traces.labels]) or \
+        all([l <= 0 for l in traces.labels])
 
-def depth_stop(kwargs):
+def depth_stop(lltinf, traces, rho, depth):
     """
     Returns True if the maximum depth has been reached
     """
-    return kwargs['depth'] <= 0
+    return depth <= 0
 
 def _find_best_primitive(traces, primitives, robustness, optimize_impurity, disp):
     # Parameters will be set for the copy of the primitive

@@ -341,7 +341,9 @@ class ConstrainedDifferentialEvolutionSolver(object):
             if param > 1 or param < 0:
                 trial[index] = self.random_number_generator.rand()
         # ADDED: imposed custom constraints
-        trial[:] = self._custom_constraint(trial)
+        while not self._custom_constraint(self._unscale_parameters(trial)):
+            trial[:] = self.random_number_generator.random_sample(trial.size)
+        # trial[:] = self._custom_constraint(trial)
 
     def _mutate(self, candidate):
         """

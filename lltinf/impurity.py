@@ -6,12 +6,16 @@ Currently defines information gain.
 Author: Francisco Penedo (franp@bu.edu)
 
 """
+import math
+import logging
+
+import numpy as np
 from scipy import optimize
+
 from lltinf.llt import set_llt_pars, SimpleModel, split_groups
 from stlmilp.stl import robustness
-import numpy as np
-import math
 
+logger = logging.getLogger(__name__)
 
 def optimize_inf_gain(traces, primitive, rho, disp=False):
     """
@@ -26,6 +30,8 @@ def optimize_inf_gain(traces, primitive, rho, disp=False):
     models = [SimpleModel(signal) for signal in traces.signals]
     args = (primitive, models, rho, traces, maxt)
 
+    # Optimize over t0, v1, v3, pi, where v1 / maxt = t1 - t0 / maxt - t0 and
+    # v3 / maxt = t3 / maxt - t1
     res = optimize.differential_evolution(
         inf_gain, bounds=zip(lower, upper),
         args=args, popsize=10, maxiter=10,
@@ -37,8 +43,11 @@ def optimize_inf_gain(traces, primitive, rho, disp=False):
 def _transform_pars(theta, maxt):
     # Transform all arguments to be in [0, 1]
     t0, t1, t3, pi = theta
-    t1 = t0 + (maxt - t0) * t1 / maxt
-    t3 = (maxt - t1) * t3 / maxt
+    if maxt > 0:
+        t1 = t0 + (maxt - t0) * t1 / maxt
+        t3 = (maxt - t1) * t3 / maxt
+    else:
+        t0 = t1 = t3 = 0.0
 
     return [t0, t1, t3, pi]
 

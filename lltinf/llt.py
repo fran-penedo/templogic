@@ -170,8 +170,11 @@ class SimpleModel(object):
                   Last row should be the sampling times.
         """
         self._signals = signals
-        self._tinter = signals[-1][1] - signals[-1][0]
         self._lsignals = len(signals[-1])
+        if self._lsignals == 1:
+            self._tinter = 1.0
+        else:
+            self._tinter = signals[-1][1] - signals[-1][0]
 
     def getVarByName(self, indices):
         """
@@ -185,8 +188,11 @@ class SimpleModel(object):
 #             0)
         '''FIXME: Assumes that sampling rate is constant, i.e. the sampling
         times are in arithmetic progression with rate self._tinter'''
-        tindex = int(min(
-            np.floor(indices[1]/self._tinter), self._lsignals - 1))
+        if self._lsignals == 1:
+            tindex = 0
+        else:
+            tindex = int(min(
+                np.floor(indices[1]/self._tinter), self._lsignals - 1))
         # assert 0 <= tindex <= len(self._signals[-1]), \
         #        'Invalid query outside the time domain of the trace! %f' % tindex
         return self._signals[indices[0]][tindex]
