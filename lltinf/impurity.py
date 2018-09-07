@@ -77,7 +77,14 @@ def inf_gain(theta, *args):
 
     set_llt_pars(primitive, theta[0], theta[1], theta[2], theta[3])
 
-    lrho = [[robustness(primitive, model) for model in models]]
+    rho = [robustness(primitive, model) for model in models]
+    rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
+    if np.any(np.isclose(0.0, rho, atol=1e-1)):
+        penalty = 100.0
+    else:
+        penalty = 0.0
+    lrho = [rho]
+
     if prev_rho is not None:
         lrho.append(prev_rho)
     rho_labels = zip(np.amin(lrho, 0), traces.labels)
@@ -86,10 +93,14 @@ def inf_gain(theta, *args):
     # compute IG
     # Sum of absolute value of the robustness for all traces
     stotal = sum(np.abs(zip(*rho_labels)[0]))
-    ig = _entropy(rho_labels) - _inweights(sat, stotal) * _entropy(sat) - \
-        _inweights(unsat, stotal) * _entropy(unsat)
+    # FIXME should probably take into account the domain of the signals
+    if np.isclose(0.0, stotal, atol=1e-5):
+        ig = -np.nan
+    else:
+        ig = _entropy(rho_labels) - _inweights(sat, stotal) * _entropy(sat) - \
+            _inweights(unsat, stotal) * _entropy(unsat)
 
-    return -ig
+    return -ig + penalty
 
 def _inweights(part, stotal):
     if len(part) == 0:

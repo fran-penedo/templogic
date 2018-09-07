@@ -42,7 +42,7 @@ class LLTSignal(Signal):
         return LLTSignal(self.index, self.op, self.pi)
 
     def __str__(self):
-        return "x_%d %s %.2f" % (self.index,
+        return "x_%d %s %f" % (self.index,
                                  "<=" if self.op == LE else ">", self.pi)
 
     @property
