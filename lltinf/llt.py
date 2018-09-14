@@ -70,6 +70,79 @@ class LLTSignal(Signal):
         self._index = value
 
 
+class LLTFormulaD1(Formula):
+    def __init__(self, safe, index, op):
+        """
+        Creates a depth 1 STL formula.
+
+        safe : boolean
+               True if the formula has a safety structure (always)
+               or not (eventually).
+        index : integer
+                Index for the signal (see LLTSignal)
+        op : either LE or GT
+             Operator for the atomic proposition (see LLTSignal)
+        """
+        if safe:
+            Formula.__init__(self, ALWAYS, [
+                    Formula(EXPR, [
+                        LLTSignal(index, op)
+                    ])
+            ])
+        else:
+            Formula.__init__(self, EVENTUALLY, [
+                    Formula(EXPR, [
+                        LLTSignal(index, op)
+                    ])
+            ])
+
+    @property
+    def index(self):
+        return self.args[0].args[0].index
+
+    @property
+    def pi(self):
+        return self.args[0].args[0].pi
+
+    @pi.setter
+    def pi(self, value):
+        self.args[0].args[0].pi = value
+
+    @property
+    def t0(self):
+        return self.bounds[0]
+
+    @t0.setter
+    def t0(self, value):
+        self.bounds[0] = value
+
+    @property
+    def t1(self):
+        return self.bounds[1]
+
+    @t1.setter
+    def t1(self, value):
+        self.bounds[1] = value
+
+    def reverse_op(self):
+        """
+        Reverses the operator of the atomic proposition
+        """
+        op = self.args[0].args[0].op
+        self.args[0].args[0].op = LE if op == GT else GT
+
+    def parameter_bounds(self, maxt, minpi, maxpi):
+        return [0, 0, minpi], [maxt, maxt, maxpi]
+
+    def set_llt_pars(self, theta):
+        """
+        Sets the parameters of a primitive
+        """
+        t0, t1, pi = theta
+        self.t0 = t0
+        self.t1 = t1
+        self.pi = pi
+
 class LLTFormula(Formula):
     """
     A depth 2 STL formula.
@@ -147,15 +220,18 @@ class LLTFormula(Formula):
         op = self.args[0].args[0].args[0].op
         self.args[0].args[0].args[0].op = LE if op == GT else GT
 
+    def parameter_bounds(self, maxt, minpi, maxpi):
+        return [0, 0, 0, minpi], [maxt, maxt, maxt, maxpi]
 
-def set_llt_pars(primitive, t0, t1, t3, pi):
-    """
-    Sets the parameters of a primitive
-    """
-    primitive.t0 = t0
-    primitive.t1 = t1
-    primitive.t3 = t3
-    primitive.pi = pi
+    def set_llt_pars(self, theta):
+        """
+        Sets the parameters of a primitive
+        """
+        t0, t1, t3, pi = theta
+        self.t0 = t0
+        self.t1 = t1
+        self.t3 = t3
+        self.pi = pi
 
 
 class SimpleModel(object):
@@ -221,6 +297,23 @@ def make_llt_primitives(signals):
     ]
 
     return alw_ev + ev_alw
+
+def make_llt_d1_primitives(signals):
+    """
+    Obtains the depth 1 primitives associated with the structure of the signals.
+
+    signals : m by n matrix
+              Last column should be the sampling times
+    """
+    prims = [
+        LLTFormulaD1(safe, index, op)
+        for safe in [True, False]
+        for index, op
+        in itertools.product(range(len(signals[0]) - 1), [LE])
+    ]
+
+    return prims
+
 
 def split_groups(l, group):
     """

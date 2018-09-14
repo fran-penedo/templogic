@@ -232,14 +232,17 @@ class LLTInf(object):
     TODO: This should also be parameterized by make_llt_primitives
 
     """
-    def __init__(self, depth=1, optimize_impurity=optimize_inf_gain,
-                 stop_condition=None, redo_after_failed=1):
+    def __init__(self, depth=1, primitive_factory=make_llt_primitives,
+                 optimize_impurity=optimize_inf_gain,
+                 stop_condition=None, redo_after_failed=1, optimizer_args=None):
         self.depth = depth
+        self.primitive_factory = primitive_factory
         self.optimize_impurity = optimize_impurity
         if stop_condition is None:
             self.stop_condition = [perfect_stop]
         else:
             self.stop_condition = stop_condition
+        self.optimizer_args = optimizer_args
         self.tree = None
         self.redo_after_failed = redo_after_failed
         self._partial_add = 0
@@ -275,8 +278,11 @@ class LLTInf(object):
                     old_tree = leaf.copy()
                     leaf.set_tree(tree)
 
+                # FIXME only for perfect_stop
                 preds = self.predict(traces.signals)
-                assert np.array_equal(preds, traces.labels)
+                if not np.array_equal(preds, traces.labels):
+                    self._partial_add = 0
+                    return self.fit(self.tree.traces, disp=disp)
                 return self
 
     def predict(self, signals):
@@ -307,9 +313,10 @@ class LLTInf(object):
             return None
 
         # Find primitive using impurity measure
-        primitives = make_llt_primitives(traces.signals)
-        primitive, impurity = _find_best_primitive(traces, primitives, rho,
-                                                self.optimize_impurity, disp)
+        primitives = self.primitive_factory(traces.signals)
+        primitive, impurity = _find_best_primitive(
+            traces, primitives, rho, self.optimize_impurity, disp,
+            self.optimizer_args)
         if disp:
             print("Best: {} ({})".format(primitive, impurity))
 
@@ -361,9 +368,9 @@ def depth_stop(lltinf, traces, rho, depth):
     """
     return depth <= 0
 
-def _find_best_primitive(traces, primitives, robustness, optimize_impurity, disp):
+def _find_best_primitive(traces, primitives, robustness, optimize_impurity, disp, optimizer_args):
     # Parameters will be set for the copy of the primitive
-    opt_prims = [optimize_impurity(traces, primitive.copy(), robustness, disp)
+    opt_prims = [optimize_impurity(traces, primitive.copy(), robustness, disp, optimizer_args)
                  for primitive in primitives]
     if disp:
         for p, imp in opt_prims:

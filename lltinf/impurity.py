@@ -12,21 +12,24 @@ import logging
 import numpy as np
 from scipy import optimize
 
-from lltinf.llt import set_llt_pars, SimpleModel, split_groups
+from lltinf.llt import SimpleModel, split_groups
 from stlmilp.stl import robustness
 
 logger = logging.getLogger(__name__)
 
-def optimize_inf_gain(traces, primitive, rho, disp=False):
+def optimize_inf_gain(traces, primitive, rho, disp=False, optimizer_args=None):
     """
     Optimizes the extended information gain for the given labeled traces.
 
     """
+    optimizer_args_def = {'popsize': 10, 'maxiter': 10, 'mutation': 0.7, 'init': 'latinhypercube'}
+    if optimizer_args is not None:
+        optimizer_args_def.update(optimizer_args)
     # [t0, t1, t3, pi]
     maxt = max(np.amax(traces.get_sindex(-1), 1))
-    lower = [0, 0, 0, min(np.amin(traces.get_sindex(primitive.index), 1))]
-    upper = [maxt, maxt, maxt,
-             max(np.amax(traces.get_sindex(primitive.index), 1))]
+    lower, upper = primitive.parameter_bounds(
+        maxt, min(np.amin(traces.get_sindex(primitive.index), 1)),
+        max(np.amax(traces.get_sindex(primitive.index), 1)))
     models = [SimpleModel(signal) for signal in traces.signals]
     args = (primitive, models, rho, traces, maxt)
 
@@ -34,22 +37,32 @@ def optimize_inf_gain(traces, primitive, rho, disp=False):
     # v3 / maxt = t3 / maxt - t1
     res = optimize.differential_evolution(
         inf_gain, bounds=zip(lower, upper),
-        args=args, popsize=10, maxiter=10,
-        mutation=0.7, disp=disp,
-        init='latinhypercube')
+        args=args, disp=disp, **optimizer_args_def)
     return primitive, res.fun
 
 
 def _transform_pars(theta, maxt):
     # Transform all arguments to be in [0, 1]
-    t0, t1, t3, pi = theta
-    if maxt > 0:
-        t1 = t0 + (maxt - t0) * t1 / maxt
-        t3 = (maxt - t1) * t3 / maxt
-    else:
-        t0 = t1 = t3 = 0.0
+    if len(theta) == 4:
+        t0, t1, t3, pi = theta
+        if maxt > 0:
+            t1 = t0 + (maxt - t0) * t1 / maxt
+            t3 = (maxt - t1) * t3 / maxt
+        else:
+            t0 = t1 = t3 = 0.0
 
-    return [t0, t1, t3, pi]
+        return [t0, t1, t3, pi]
+    elif len(theta) == 3:
+        t0, t1, pi = theta
+        if maxt > 0:
+            t1 = t0 + (maxt - t0) * t1 / maxt
+        else:
+            t0 = t1 = 0.0
+
+        return [t0, t1, pi]
+    else:
+        raise ValueError()
+
 
 def inf_gain(theta, *args):
     """
@@ -71,15 +84,15 @@ def inf_gain(theta, *args):
 
     theta = _transform_pars(theta, maxt)
 
-    if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
-        print 'bad'
-        return np.inf
+    # if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
+    #     print 'bad'
+    #     return np.inf
 
-    set_llt_pars(primitive, theta[0], theta[1], theta[2], theta[3])
+    primitive.set_llt_pars(theta)
 
     rho = [robustness(primitive, model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
-    if np.any(np.isclose(0.0, rho, atol=1e-1)):
+    if np.any(np.isclose(0.0, rho, atol=1e-5)):
         penalty = 100.0
     else:
         penalty = 0.0
