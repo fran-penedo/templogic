@@ -8,6 +8,7 @@ Author: Francisco Penedo (franp@bu.edu)
 """
 import logging
 import multiprocess
+import signal
 
 import numpy as np
 
@@ -205,7 +206,8 @@ def _pprint(tree, tab=0):
     right = _pprint(tree.right, tab + 1)
     return "{}{} ({})\n{}{}".format(pad, str(tree.primitive), len(tree.traces), left, right)
 
-
+def _pool_initializer():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 class LLTInf(object):
     """
@@ -266,13 +268,26 @@ class LLTInf(object):
         self.redo_after_failed = redo_after_failed
         self._partial_add = 0
         if 'workers' not in self.optimizer_args:
-            self.pool = multiprocess.Pool()
-            self.pool_map = lambda func, iterable: self.pool.apply_async(func, iterable).get(timeout=5)
+            self.pool = multiprocess.Pool(initializer=_pool_initializer)
+            def pool_map(func, iterable):
+                try:
+                    return self.pool.map_async(func, iterable).get(timeout=5)
+                except KeyboardInterrupt:
+                    self.pool.terminate()
+                    self.pool.join()
+                    raise KeyboardInterrupt()
+            self.pool_map = pool_map
             self.optimizer_args['workers'] = self.pool_map
 
     def __del__(self):
         if hasattr(self, 'pool'):
             self.pool.terminate()
+            self.pool.join()
+
+    def __exit__(self):
+        if hasattr(self, 'pool'):
+            self.pool.terminate()
+            self.pool.join()
 
     def fit(self, traces, disp=False):
         np.seterr(all='ignore')
