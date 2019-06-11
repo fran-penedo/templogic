@@ -7,11 +7,12 @@ Author: Francisco Penedo (franp@bu.edu)
 
 """
 import logging
+import multiprocess
 
 import numpy as np
 
 from stlmilp.stl import Formula, AND, OR, NOT, satisfies, robustness
-from lltinf.impurity import optimize_inf_gain
+import lltinf.impurity as impurity
 from lltinf.llt import make_llt_primitives, split_groups, SimpleModel
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class Traces(object):
                  Each label should be either 1 or -1
         """
         self._signals = np.array([], dtype=float) if signals is None else np.array(signals, dtype=float)
-        self._labels = [] if labels is None else list(labels)
+        self._labels = np.array([] if labels is None else list(labels))
 
     @property
     def labels(self):
@@ -61,8 +62,10 @@ class Traces(object):
 
     def add_traces(self, signals, labels):
         self._signals = np.vstack([self._signals, signals])
-        self._labels.extend(labels)
+        self._labels = np.hstack([self._labels, labels])
 
+    def copy(self):
+        return Traces(self._signals.copy(), self._labels.copy())
     def __len__(self):
         return len(self.signals)
 
@@ -86,7 +89,7 @@ class DTree(object):
         """
         self.primitive = primitive
         self.traces = traces
-        self.robustness = robustness
+        self.robustness = np.array(robustness)
         self._left = left
         self._right = right
         self.parent = None
@@ -101,23 +104,29 @@ class DTree(object):
     def copy(self):
         return DTree(self.primitive, self.traces, self.robustness, self.left, self.right)
 
-    def classify(self, signal):
+    def deep_copy(self):
+        left = None if self.left is None else self.left.deep_copy()
+        right = None if self.right is None else self.right.deep_copy()
+        return DTree(
+            self.primitive.copy(), self.traces.copy(), self.robustness.copy(), left, right)
+
+    def classify(self, signal, interpolate=False, tinter=None):
         """
         Classifies a signal. Returns a label 1 or -1
 
         signal : an m by n matrix
                  Last row should be the sampling times
         """
-        if satisfies(self.primitive, SimpleModel(signal)):
+        if satisfies(self.primitive, SimpleModel(signal, interpolate, tinter)):
             if self.left is None:
                 return 1
             else:
-                return self.left.classify(signal)
+                return self.left.classify(signal, interpolate, tinter)
         else:
             if self.right is None:
                 return -1
             else:
-                return self.right.classify(signal)
+                return self.right.classify(signal, interpolate, tinter)
 
     def get_formula(self):
         """
@@ -139,22 +148,22 @@ class DTree(object):
         else:
             return left
 
-    def add_signal(self, signal, label):
-        return self._add_signal(signal, label, np.Inf)
+    def add_signal(self, signal, label, interpolate=False, tinter=None):
+        return self._add_signal(signal, label, np.Inf, interpolate, tinter)
 
-    def _add_signal(self, signal, label, rho):
+    def _add_signal(self, signal, label, rho, interpolate=False, tinter=None):
         self.traces.add_traces([signal], [label])
         self.robustness = np.r_[self.robustness, rho]
-        prim_rho = robustness(self.primitive, SimpleModel(signal))
+        prim_rho = robustness(self.primitive, SimpleModel(signal, interpolate, tinter))
         rho = np.amin([np.abs(prim_rho), rho])
         if prim_rho >= 0:
             if self.left is not None:
-                return self.left._add_signal(signal, label, rho)
+                return self.left._add_signal(signal, label, rho, interpolate, tinter)
             else:
                 return self
         else:
             if self.right is not None:
-                return self.right._add_signal(signal, label, rho)
+                return self.right._add_signal(signal, label, rho, interpolate, tinter)
             else:
                 return self
 
@@ -229,23 +238,41 @@ class LLTInf(object):
 
     Returns a DTree object.
 
-    TODO: This should also be parameterized by make_llt_primitives
+    TODO: Fix comments
 
     """
     def __init__(self, depth=1, primitive_factory=make_llt_primitives,
-                 optimize_impurity=optimize_inf_gain,
-                 stop_condition=None, redo_after_failed=1, optimizer_args=None):
+                 optimize_impurity=impurity.ext_inf_gain,
+                 stop_condition=None, redo_after_failed=1, optimizer_args=None,
+                 times=None, fallback_impurity=impurity.inf_gain):
         self.depth = depth
         self.primitive_factory = primitive_factory
         self.optimize_impurity = optimize_impurity
+        self.fallback_impurity = fallback_impurity
         if stop_condition is None:
             self.stop_condition = [perfect_stop]
         else:
             self.stop_condition = stop_condition
+        if optimizer_args is None:
+            optimizer_args = {}
         self.optimizer_args = optimizer_args
+        self.times = times
+        self.interpolate = times is not None
+        if self.interpolate and len(self.times) > 1:
+            self.tinter = self.times[1] - self.times[0]
+        else:
+            self.tinter = None
         self.tree = None
         self.redo_after_failed = redo_after_failed
         self._partial_add = 0
+        if 'workers' not in self.optimizer_args:
+            self.pool = multiprocess.Pool()
+            self.pool_map = lambda func, iterable: self.pool.apply_async(func, iterable).get(timeout=5)
+            self.optimizer_args['workers'] = self.pool_map
+
+    def __del__(self):
+        if hasattr(self, 'pool'):
+            self.pool.terminate()
 
     def fit(self, traces, disp=False):
         np.seterr(all='ignore')
@@ -259,7 +286,9 @@ class LLTInf(object):
             preds = self.predict(traces.signals)
             failed = set()
             for i in range(len(preds)):
-                leaf = self.tree.add_signal(traces.signals[i], traces.labels[i])
+                leaf = self.tree.add_signal(
+                    traces.signals[i], traces.labels[i], self.interpolate,
+                    self.tinter)
                 if preds[i] != traces.labels[i]:
                     failed.add(leaf)
 
@@ -287,7 +316,8 @@ class LLTInf(object):
 
     def predict(self, signals):
         if self.tree is not None:
-            return np.array([self.tree.classify(s) for s in signals])
+            return np.array([self.tree.classify(s, self.interpolate, self.tinter)
+                             for s in signals])
         else:
             raise ValueError("Model not fit")
 
@@ -297,7 +327,7 @@ class LLTInf(object):
         else:
             raise ValueError("Model not fit")
 
-    def _lltinf(self, traces, rho, depth, disp=False):
+    def _lltinf(self, traces, rho, depth, disp=False, override_impurity=None):
         """
         Recursive call for the decision tree construction.
 
@@ -314,14 +344,20 @@ class LLTInf(object):
 
         # Find primitive using impurity measure
         primitives = self.primitive_factory(traces.signals)
+        if override_impurity is None:
+            impurity = self.optimize_impurity
+        else:
+            impurity = override_impurity
         primitive, impurity = _find_best_primitive(
-            traces, primitives, rho, self.optimize_impurity, disp,
-            self.optimizer_args)
+            traces, primitives, rho, impurity, disp,
+            self.optimizer_args, times=self.times, interpolate=self.interpolate,
+            tinter=self.tinter)
         if disp:
             print("Best: {} ({})".format(primitive, impurity))
 
         # Classify using best primitive and split into groups
-        prim_rho = [robustness(primitive, SimpleModel(s)) for s in traces.signals]
+        prim_rho = [robustness(primitive, SimpleModel(s, self.interpolate, self.tinter))
+                    for s in traces.signals]
         if rho is None:
             rho = [np.inf for i in traces.labels]
         tree = DTree(primitive, traces, rho)
@@ -341,7 +377,12 @@ class LLTInf(object):
         # No further classification possible
         if len(sat_) == 0 or len(unsat_) == 0:
             logger.debug("No further classification possible")
-            return None
+            if override_impurity is None:
+                logger.debug("Attempting to classify using impurity fallback")
+                return self._lltinf(
+                    traces, rho, depth, disp=disp, override_impurity=self.fallback_impurity)
+            else:
+                return None
 
         # Redo data structures
         sat, unsat = [(Traces(*group[2:]),
@@ -368,10 +409,15 @@ def depth_stop(lltinf, traces, rho, depth):
     """
     return depth <= 0
 
-def _find_best_primitive(traces, primitives, robustness, optimize_impurity, disp, optimizer_args):
+def _find_best_primitive(
+    traces, primitives, robustness, optimize_impurity, disp, optimizer_args,
+    times, interpolate, tinter):
     # Parameters will be set for the copy of the primitive
-    opt_prims = [optimize_impurity(traces, primitive.copy(), robustness, disp, optimizer_args)
-                 for primitive in primitives]
+    opt_prims = [
+        impurity.optimize_impurity(
+            traces, primitive.copy(), robustness, disp, optimizer_args, times,
+            interpolate, tinter, impurity=optimize_impurity)
+        for primitive in primitives]
     if disp:
         for p, imp in opt_prims:
             print("{} ({})".format(p, imp))

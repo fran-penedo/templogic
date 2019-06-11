@@ -4,6 +4,9 @@ Module with depth 2 p-stl definitions
 Author: Francisco Penedo (franp@bu.edu)
 
 """
+from bisect import bisect_right
+import logging
+
 import stlmilp.stl as stl
 from stlmilp.stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
 import itertools
@@ -12,6 +15,7 @@ import numpy as np
 from pyparsing import Word, alphas, Suppress, Optional, Combine, nums, \
     Literal, alphanums, Keyword, Group, ParseFatalException, MatchFirst
 
+logger = logging.getLogger(__name__)
 
 class LLTSignal(Signal):
     """
@@ -29,14 +33,18 @@ class LLTSignal(Signal):
         pi : numeric
 
         """
+        super(LLTSignal, self).__init__(self.labels, self.f)
         self._index = index
         self._op = op
         self._pi = pi
 
-        # labels transform a time into a pair [j, t]
-        self.labels = [lambda t: [self._index, t]]
-        # transform to x_j - pi >= 0
-        self.f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
+    # labels transform a time into a pair [j, t]
+    def labels(self, t):
+        return [[self._index, t]]
+
+    # transform to x_j - pi >= 0
+    def f(self, vs):
+        return (vs[0] - self._pi) * (-1 if self._op == LE else 1)
 
     def __deepcopy__(self, memo):
         return LLTSignal(self.index, self.op, self.pi)
@@ -240,7 +248,7 @@ class SimpleModel(object):
     LLTFormula
     """
 
-    def __init__(self, signals):
+    def __init__(self, signals, interpolate=False, tinter=None):
         """
         signals : m by n matrix.
                   Last row should be the sampling times.
@@ -249,8 +257,11 @@ class SimpleModel(object):
         self._lsignals = len(signals[-1])
         if self._lsignals == 1:
             self._tinter = 1.0
+        elif tinter is not None:
+            self._tinter = tinter
         else:
             self._tinter = signals[-1][1] - signals[-1][0]
+        self.interpolate = interpolate
 
     def getVarByName(self, indices):
         """
@@ -258,6 +269,7 @@ class SimpleModel(object):
                   indices[0] represents the name of the signal
                   indices[1] represents the time at which to sample the signal
         """
+        name, time = indices
 #         tindex = max(min(
 #             bisect_left(self._signals[-1], indices[1]),
 #             len(self._signals[-1]) - 1),
@@ -265,13 +277,27 @@ class SimpleModel(object):
         '''FIXME: Assumes that sampling rate is constant, i.e. the sampling
         times are in arithmetic progression with rate self._tinter'''
         if self._lsignals == 1:
-            tindex = 0
+            return self._signals[name][0]
+        elif self.interpolate:
+            times = self._signals[-1]
+            signal = self._signals[name]
+            if time == times[0]:
+                return signal[0]
+            elif time == times[-1]:
+                return signal[-1]
+            else:
+                tindex = bisect_right(times, time) - 1
+                tinter = times[tindex + 1] - times[tindex]
+                lam = (time - times[tindex]) / tinter
+                ret = (1 - lam) * signal[tindex] + lam * signal[tindex + 1]
+                # logger.debug([name, time, tindex, tinter, ret])
+                return ret
         else:
             tindex = int(min(
-                np.floor(indices[1]/self._tinter), self._lsignals - 1))
-        # assert 0 <= tindex <= len(self._signals[-1]), \
-        #        'Invalid query outside the time domain of the trace! %f' % tindex
-        return self._signals[indices[0]][tindex]
+                np.floor(time/self._tinter), self._lsignals - 1))
+            # assert 0 <= tindex <= len(self._signals[-1]), \
+            #        'Invalid query outside the time domain of the trace! %f' % tindex
+            return self._signals[name][tindex]
 
     @property
     def tinter(self):
