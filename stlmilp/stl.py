@@ -56,6 +56,17 @@ class Signal(object):
         self.labels = labels
         self.f = f
         self.bounds = bounds if bounds else [-1,1]
+        try:
+            if len(self.labels) >= 0:
+                self.get_vs = self._get_vs_list
+        except TypeError:
+            self.get_vs = self._get_vs_fun
+
+    def _get_vs_list(self, model, t):
+        return [model.getVarByName(l(t)) for l in self.labels]
+
+    def _get_vs_fun(self, model, t):
+        return [model.getVarByName(l) for l in self.labels(t)]
 
     def signal(self, model, t):
         """
@@ -70,7 +81,7 @@ class Signal(object):
             The time
         """
 
-        vs = [model.getVarByName(l(t)) for l in self.labels]
+        vs = self.get_vs(model, t)
         # TODO Get rid of any
         if any(var is None for var in vs):
             raise Exception(("Couldn't find all variables in model.\n"
@@ -246,6 +257,27 @@ def perturb(f, eps):
     else:
         for arg in f.args:
             perturb(arg, eps)
+
+def scale_time(formula, dt):
+    """Transforms a formula in continuous time to discrete time
+
+    Substitutes the time bounds in a :class:`stlmilp.stl.Formula` from
+    continuous time to discrete time with time interval `dt`
+
+    Parameters
+    ----------
+    formula : :class:`stlmilp.stl.Formula`
+    dt : float
+
+    Returns
+    -------
+    None
+
+    """
+    formula.bounds = [int(b / dt) for b in formula.bounds]
+    for arg in formula.args:
+        if arg.op != EXPR:
+            scale_time(arg, dt)
 
 
 # FIXME used fixed time intervals

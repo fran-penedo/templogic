@@ -16,6 +16,8 @@ def _stl_expr(m, label, f, t):
         return None, None
 
 def _stl_not(m, label, f, t):
+    if f.args[0].op == stl.NOT:
+        return add_stl_constr(m, label, f.args[0].args[0], t)
     x, bounds = add_stl_constr(m, label + "_not", f.args[0], t)
     if x is not None:
         y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
@@ -56,12 +58,12 @@ def _stl_next(m, label, f, t):
 def _stl_always_eventually(m, label, f, t, op):
     xx = []
     boundss = []
-    if f.bounds[0] == f.bounds[1]:
-        b1 = f.bounds[0]
-        b2 = f.bounds[1] + 1
-    else:
-        b1, b2 = f.bounds
-    for i in range(b1, b2):
+    # if f.bounds[0] == f.bounds[1]:
+    #     b1 = f.bounds[0]
+    #     b2 = f.bounds[1] + 1
+    # else:
+    b1, b2 = f.bounds
+    for i in range(b1, b2 + 1):
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
                                    t + i)
         if x is not None:
@@ -126,7 +128,7 @@ def build_and_solve(
     outputflag=None, numericfocus=None, threads=4, log_files=True):
     # print spec
     if spec is not None:
-        hd = max(0, spec.horizon())
+        hd = max(0, spec.horizon()) + 1
     else:
         hd = 0
 
