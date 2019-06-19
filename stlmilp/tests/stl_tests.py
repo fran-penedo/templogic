@@ -3,35 +3,37 @@ import unittest
 
 import stlmilp.stl as stl
 
+class _Model():
+    def __init__(self, s):
+        self.s = s
+        self.tinter = 1
+
+    def getVarByName(self, j):
+        return self.s[j]
+
 class TestSTL(unittest.TestCase):
     def setUp(self):
+        self.labels = [lambda x: x]
+        signal = stl.Signal(self.labels, lambda x: x[0] + 3)
         self.f = stl.Formula(stl.NEXT, [
             stl.Formula(stl.ALWAYS, bounds=[3, 5], args=[
                 stl.Formula(stl.EVENTUALLY, bounds=[2, 4], args=[
                     stl.Formula(stl.AND, args=[
                         stl.Formula(stl.OR, args=[
-                            stl.Formula(stl.EXPR, []),
+                            stl.Formula(stl.EXPR, [signal]),
                             stl.Formula(stl.ALWAYS, bounds=[1, 3],
-                                    args=[stl.Formula(stl.EXPR, [])]),
+                                    args=[stl.Formula(stl.EXPR, [signal])]),
                             stl.Formula(stl.EVENTUALLY, bounds=[0, 2],
-                                    args=[stl.Formula(stl.EXPR, [])])
+                                    args=[stl.Formula(stl.EXPR, [signal])])
                         ]),
-                        stl.Formula(stl.NOT, [stl.Formula(stl.EXPR, [])])
+                        stl.Formula(stl.NOT, [stl.Formula(stl.EXPR, [signal])])
                     ])
                 ])
             ])
         ])
-        self.s = [0, 1, 2, 4, 8, 4, 2, 1, 0]
-        class Model():
-            def __init__(self, s):
-                self.s = s
-                self.tinter = 1
+        self.s = [0, 1, 2, 4, 8, 4, 2, 1, 0, 1, 2, 6, 2, 1, 5, 7, 8, 1]
 
-            def getVarByName(self, j):
-                return self.s[j]
-
-        self.model = Model(self.s)
-        self.labels = [lambda x: x]
+        self.model = _Model(self.s)
 
     def test_horizon(self):
         assert self.f.horizon() == 13
@@ -71,3 +73,11 @@ class TestSTL(unittest.TestCase):
         g = stl.Formula(stl.EXPR, [stl.Signal(self.labels, lambda x: x[0] + 3)])
         f = stl.Formula(stl.EVENTUALLY, [g], [1, 3])
         assert(stl.robustness(f, self.model, 2) == max(self.s[3] + 3, self.s[4] + 3, self.s[5] + 3))
+
+    def test_robustness(self):
+        self.assertEqual(stl.robustness(self.f, self.model, 0), -3)
+
+    def test_robustness_tree(self):
+        tree = stl.robustness_tree(self.f, self.model, 0)
+        self.assertEqual(tree.robustness, -3)
+        print(tree.pprint())

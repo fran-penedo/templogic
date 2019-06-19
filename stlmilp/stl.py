@@ -280,34 +280,134 @@ def scale_time(formula, dt):
             scale_time(arg, dt)
 
 
-# FIXME used fixed time intervals
+def score(formula, model, ops, t=0):
+    mmap, mreduce = ops[formula.op]
+    return mreduce(mmap(formula.args, formula.bounds, model, t, ops))
+
+def expr_map(args, bounds, model, t, ops):
+    return [args[0].signal(model, t)]
+
+def boolean_map(args, bounds, model, t, ops):
+    return [score(arg, model, ops, t) for arg in args]
+
+def next_map(args, bounds, model, t, ops):
+    return [score(args[0], model, ops, t + model.tinter)]
+
+def temp_map(args, bounds, model, t, ops):
+    return [score(args[0], model, ops, t + j) for j in
+            np.arange(bounds[0], bounds[1] + model.tinter, model.tinter)]
+
+def identity(xs):
+    return xs[0]
+
+def neg(xs):
+    return -xs[0]
+
+STL_ROBUSTNESS_OPS = {
+    EXPR: [expr_map, identity],
+    NOT: [boolean_map, neg],
+    AND: [boolean_map, min],
+    OR: [boolean_map, max],
+    NEXT: [next_map, identity],
+    ALWAYS: [temp_map, min],
+    EVENTUALLY: [temp_map, max]
+}
+
 def robustness(formula, model, t=0):
-    """
-    Computes the robustness of a formula with respect to a model at time t.
+    return score(formula, model, STL_ROBUSTNESS_OPS, t)
 
-    The computation is recursive.
+class RobustnessTree(object):
 
-    formula : Formula
-    model : object as defined in Signal
-            The model containing the values of the primary signal.
-    time : numeric
-           The time at which to compute the robustness.
-    """
-    return {
-        EXPR: lambda: formula.args[0].signal(model, t),
-        NOT: lambda: -robustness(formula.args[0], model, t),
-        AND: lambda: min(robustness(f, model, t) for f in formula.args),
-        OR: lambda: max(robustness(f, model, t) for f in formula.args),
-        NEXT: lambda: robustness(formula.args[0], model, t + model.tinter),
-        ALWAYS: lambda: min(robustness(formula.args[0], model, t + j) for j in
-            np.arange(formula.bounds[0],
-                      formula.bounds[1] + model.tinter,
-                      model.tinter)),
-        EVENTUALLY: lambda: max(robustness(formula.args[0], model, t + j) for j in
-            np.arange(formula.bounds[0],
-                      formula.bounds[1] + model.tinter,
-                      model.tinter))
-    }[formula.op]()
+    """Docstring for RobustnessTree. """
+
+    def __init__(self, robustness, index, children):
+        """TODO: to be defined1.
+
+        Parameters
+        ----------
+        robustness : TODO
+        index : TODO
+        children : TODO
+
+
+        """
+        self.robustness = robustness
+        self.index = index
+        self.children = children
+
+    @classmethod
+    def expr_map(cls, args, bounds, model, t, ops):
+        return [cls(expr_map(args, bounds, model, t, ops)[0], 0, [])]
+
+    @classmethod
+    def neg(cls, xs):
+        return cls(-xs[0].robustness, 0, xs)
+
+    @classmethod
+    def _minmax(cls, xs, op):
+        i = op([x.robustness for x in xs])
+        return cls(xs[i].robustness, i, xs)
+
+    @classmethod
+    def min(cls, xs):
+        return cls._minmax(xs, np.argmin)
+
+    @classmethod
+    def max(cls, xs):
+        return cls._minmax(xs, np.argmax)
+
+    def pprint(self, tab=0):
+        return _pprint(self, tab)
+
+
+def _pprint(tree, tab=0):
+    pad = " |" * tab + "-"
+    children = [_pprint(child, tab + 1) for child in tree.children]
+    return "{}r = {} ({})\n{}".format(pad, tree.robustness, tree.index,
+                                      "".join(children))
+
+
+ROBUSTNESS_TREE_OPS = {
+    EXPR: [RobustnessTree.expr_map, identity],
+    NOT: [boolean_map, RobustnessTree.neg],
+    AND: [boolean_map, RobustnessTree.min],
+    OR: [boolean_map, RobustnessTree.max],
+    NEXT: [next_map, identity],
+    ALWAYS: [temp_map, RobustnessTree.min],
+    EVENTUALLY: [temp_map, RobustnessTree.max]
+}
+
+def robustness_tree(formula, model, t=0):
+    return score(formula, model, ROBUSTNESS_TREE_OPS, t)
+
+# # FIXME used fixed time intervals
+# def old_robustness(formula, model, t=0):
+#     """
+#     Computes the robustness of a formula with respect to a model at time t.
+#
+#     The computation is recursive.
+#
+#     formula : Formula
+#     model : object as defined in Signal
+#             The model containing the values of the primary signal.
+#     time : numeric
+#            The time at which to compute the robustness.
+#     """
+#     return {
+#         EXPR: lambda: formula.args[0].signal(model, t),
+#         NOT: lambda: -robustness(formula.args[0], model, t),
+#         AND: lambda: min(robustness(f, model, t) for f in formula.args),
+#         OR: lambda: max(robustness(f, model, t) for f in formula.args),
+#         NEXT: lambda: robustness(formula.args[0], model, t + model.tinter),
+#         ALWAYS: lambda: min(robustness(formula.args[0], model, t + j) for j in
+#             np.arange(formula.bounds[0],
+#                       formula.bounds[1] + model.tinter,
+#                       model.tinter)),
+#         EVENTUALLY: lambda: max(robustness(formula.args[0], model, t + j) for j in
+#             np.arange(formula.bounds[0],
+#                       formula.bounds[1] + model.tinter,
+#                       model.tinter))
+#     }[formula.op]()
 
 def satisfies(formula, model, t=0):
     """

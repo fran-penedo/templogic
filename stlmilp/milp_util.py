@@ -24,21 +24,28 @@ def delta_label(l, i):
     return l + "_" + str(i)
 
 
-def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
+def add_minmax_constr(m, label, args, K, op='min', nnegative=True,
+                      start=GRB.UNDEFINED, start_index=None):
     """
     Adds the constraint label = op{args} to the milp m
 
+    Parameters
+    ----------
     m : a gurobi Model
     label : a string
-            Prefix for the variables added
+        Prefix for the variables added
     args : a list of variables
-           The set of variables forming the argument of the operation
+        The set of variables forming the argument of the operation
     K : a numeric
         Must be an upper bound of the absolute value of the variables in args
     op : a value from ['min', 'max']
-         The operation to encode
+        The operation to encode
     nnegative : a boolean
-                True if 0 is lower bound of all variables in args
+        True if 0 is lower bound of all variables in args
+    start : float
+        Start optimal value for the minmax variable
+    start_index : int
+        Index of the start optimal value in args
 
     TODO handle len(args) == 2 differently
     """
@@ -47,6 +54,7 @@ def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
 
     y = {}
     y[label] = m.addVar(lb=0 if nnegative else -K, ub=K, name=label)
+    y[label].start = start
 
     if len(args) == 0:
         m.addConstr(y[label] == K)
@@ -54,7 +62,12 @@ def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
     else:
         for i in range(len(args)):
             l = delta_label(label, i)
+            if start_index is not None:
+                start_delta = 1 if start_index == i else 0
+            else:
+                start_delta = GRB.UNDEFINED
             y[l] = m.addVar(vtype=g.GRB.BINARY, name=l)
+            y[l].start = start_delta
 
         for i in range(len(args)):
             x = delta_label(label, i)
@@ -70,11 +83,11 @@ def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
 
     return y
 
-def add_max_constr(m, label, args, K, nnegative=True):
-    return add_minmax_constr(m, label, args, K, 'max', nnegative)
+def add_max_constr(m, label, args, K, nnegative=True, start=GRB.UNDEFINED, start_index=None):
+    return add_minmax_constr(m, label, args, K, 'max', nnegative, start, start_index)
 
-def add_min_constr(m, label, args, K, nnegative=True):
-    return add_minmax_constr(m, label, args, K, 'min', nnegative)
+def add_min_constr(m, label, args, K, nnegative=True, start=GRB.UNDEFINED, start_index=None):
+    return add_minmax_constr(m, label, args, K, 'min', nnegative, start, start_index)
 
 def add_abs_var(m, label, var, obj):
     if m.modelSense == g.GRB.MINIMIZE:
