@@ -89,7 +89,7 @@ def _stl_always_eventually(m, label, f, t, op, start_robustness_tree=None):
     b1, b2 = f.bounds
     for i in range(b1, b2 + 1):
         if start_robustness_tree is not None:
-            tree = start_robustness_tree.children[i]
+            tree = start_robustness_tree.children[i - b1]
         else:
             tree = None
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
@@ -114,10 +114,10 @@ def _stl_always_eventually(m, label, f, t, op, start_robustness_tree=None):
         return None, None
 
 def _stl_always(m, label, f, t, start_robustness_tree=None):
-    return _stl_always_eventually(m, label, f, t, "alw")
+    return _stl_always_eventually(m, label, f, t, "alw", start_robustness_tree)
 
 def _stl_eventually(m, label, f, t, start_robustness_tree=None):
-    return _stl_always_eventually(m, label, f, t, "eve")
+    return _stl_always_eventually(m, label, f, t, "eve", start_robustness_tree)
 
 
 def add_stl_constr(m, label, f, t=0, start_robustness_tree=None):
@@ -175,7 +175,9 @@ def build_and_solve(
     # sys_milp.add_sys_constr_x0(m, "d", system, d0, hd, None)
     if spec is not None:
         logger.debug("Adding STL constraints")
-        fvar, vbds = add_stl_constr(m, "spec", spec, start_robustness_tree)
+        if start_robustness_tree is not None:
+            logger.debug("Using starting robustness tree")
+        fvar, vbds = add_stl_constr(m, "spec", spec, start_robustness_tree=start_robustness_tree)
         fvar.setAttr("obj", spec_obj)
 
     if outputflag is not None:
