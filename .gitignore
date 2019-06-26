@@ -1,0 +1,13 @@
+nusmv/
+doc/**/*.pdf
+.DS_Store
+*.pyc
+*.lp
+.srclist
+.tmuxp.yaml
+tags
+*.egg-info
+out_vars.txt
+temp_plots/
+doc/source/femformal/stubs
+doc/build
