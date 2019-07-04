@@ -1,5 +1,3 @@
-from __future__ import division, absolute_import, print_function
-
 import itertools as it
 import logging
 import math
@@ -51,7 +49,9 @@ class QuadTree(Tree):
             raise ValueError("Only complete quadtrees allowed")
 
         if q > 1:
-            x = zip(*[x[i * len(x) // q : (i + 1) * len(x) // q] for i in range(q)])
+            x = list(
+                zip(*[x[i * len(x) // q : (i + 1) * len(x) // q] for i in range(q)])
+            )
 
         level = _level(len(x)) - 1
         trees = [[] for i in range(4 ** level)]

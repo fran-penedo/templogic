@@ -1,6 +1,4 @@
-from __future__ import division, absolute_import, print_function
-
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 import logging
 
 from enum import Enum
@@ -36,9 +34,7 @@ class TSSLModel(object):
         return self.qtree.data
 
 
-class TSSLTerm(object):
-    __metaclass__ = ABCMeta
-
+class TSSLTerm(ABC):
     def score(self, model, mmap, mreduce):
         return mreduce(self)(mmap(self)(model, mmap, mreduce))
 
