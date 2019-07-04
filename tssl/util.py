@@ -5,8 +5,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class Tree(object):
 
+class Tree(object):
     def __init__(self, data, children):
         self._data = data
         self.children = children
@@ -17,8 +17,7 @@ class Tree(object):
 
     def set_child(self, idx, tree):
         if idx >= len(self._children):
-            self._children.extend(
-                [None for i in range(len(self._children) - idx + 1)])
+            self._children.extend([None for i in range(len(self._children) - idx + 1)])
         self._children[idx] = tree
         tree.parent = self
 

@@ -11,11 +11,10 @@ import numpy.testing as npt
 from tssl import quadtree
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-FOCUSED = os.environ.get('FOCUSED', False)
+FOCUSED = os.environ.get("FOCUSED", False)
 
 
 class TestQuadTree(unittest.TestCase):
-
     def test_labels(self):
         for i in range(8):
             for j in range(4):
@@ -61,4 +60,3 @@ class TestQuadTree(unittest.TestCase):
         res = np.array([1.5, 0, 1, 2, 3, 5.5, 4, 5, 6, 7])
         tree = quadtree.QuadTree.from_matrix(m, partial(np.mean, axis=0))
         npt.assert_array_equal(tree.flatten(), res)
-
