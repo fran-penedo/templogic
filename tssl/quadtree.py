@@ -1,20 +1,23 @@
 import itertools as it
 import logging
 import math
+from typing import Sequence, Callable, TypeVar, Generic
 
-import numpy as np
+import numpy as np  # type: ignore
 
 from tssl.util import Tree
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
 
-class QuadTree(Tree):
+
+class QuadTree(Tree, Generic[T]):
 
     """Directions: [0, 1, 2, 3] == [NW, NE, SW, SE]
     """
 
-    def __init__(self, data, children):
+    def __init__(self, data: T, children: Sequence["QuadTree"]) -> None:
         super(QuadTree, self).__init__(data, children)
 
     @Tree.children.setter
@@ -67,20 +70,20 @@ class QuadTree(Tree):
         return cls(x[0], trees[0])
 
     @classmethod
-    def from_matrix(cls, m, f):
-        m = np.array(m)
-        depth = int(math.log(m.shape[0], 2))
-        if len(m.shape) < 2 or m.shape[0] != m.shape[1] or 2 ** depth != m.shape[0]:
+    def from_matrix(cls, m: Sequence, f: Callable[[Sequence[T]], T]) -> "QuadTree":
+        mm = np.array(m)
+        depth = int(math.log(mm.shape[0], 2))
+        if len(mm.shape) < 2 or mm.shape[0] != mm.shape[1] or 2 ** depth != mm.shape[0]:
             raise ValueError("Only 2^n x 2^n x d matrices supported")
 
         if depth == 0:
-            return cls(m[0, 0], [])
+            return cls(mm[0, 0], [])
 
         children = [
             cls.from_matrix(
-                m[
-                    i * m.shape[0] // 2 : (i + 1) * m.shape[0] // 2,
-                    j * m.shape[0] // 2 : (j + 1) * m.shape[0] // 2,
+                mm[
+                    i * mm.shape[0] // 2 : (i + 1) * mm.shape[0] // 2,
+                    j * mm.shape[0] // 2 : (j + 1) * mm.shape[0] // 2,
                 ],
                 f,
             )
