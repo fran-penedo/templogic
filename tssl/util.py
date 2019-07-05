@@ -1,79 +1,92 @@
-import itertools as it
 import logging
+from typing import Sequence, TypeVar, Generic, Optional, List, Callable
+
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+S = TypeVar("S")
 
-class Tree(object):
-    def __init__(self, data, children):
-        self._data = data
+
+class Tree(Generic[T]):
+    """A tree data structure
+    """
+
+    _data: T
+    _children: List["Tree[T]"]
+    parent: Optional["Tree[T]"]
+
+    def __init__(self, data: T, children: Sequence["Tree[T]"]) -> None:
+        self.data = data
         self.children = children
-        self._parent = None
+        self.parent = None
 
-    def get_child(self, idx):
+    def get_child(self, idx: int) -> "Tree[T]":
         return self._children[idx]
 
-    def set_child(self, idx, tree):
-        if idx >= len(self._children):
-            self._children.extend([None for i in range(len(self._children) - idx + 1)])
+    def set_child(self, idx: int, tree: "Tree[T]") -> None:
         self._children[idx] = tree
         tree.parent = self
 
     @property
-    def children(self):
+    def children(self) -> List["Tree[T]"]:
         return self._children
 
     @children.setter
-    def children(self, value):
-        self._children = value
+    def children(self, value: Sequence["Tree[T]"]) -> None:
+        self._children = list(value)
         for child in self._children:
             child.parent = self
 
     @property
-    def data(self):
+    def data(self) -> T:
         return self._data
 
     @data.setter
-    def data(self, value):
+    def data(self, value: T) -> None:
         self._data = value
 
-    def level(self):
-        if self._parent is None:
+    def level(self) -> int:
+        if self.parent is None:
             return 0
         else:
             return 1 + self.parent.level()
 
-    def depth(self):
+    def depth(self) -> int:
         if self.children is None or all([child is None for child in self._children]):
             return 0
         else:
             return 1 + max([child.depth() for child in self._children])
 
-    def foldl(self, f, z):
+    def foldl(self, f: Callable[[S, T], S], z: S) -> S:
         res = z
         l = []
         l.append(self)
         while len(l) > 0:
             t = l.pop(0)
-            f(res, t.data)
+            res = f(res, t.data)
             l.extend(t.children)
 
         return res
 
-    def flatten(self):
-        return self.foldl(lambda l, a: l.append(a), [])
+    def flatten(self) -> List[T]:
+        def append(l, a):
+            l.append(a)
+            return l
 
-    def pprint(self, tab=0):
+        return self.foldl(append, [])
+
+    def pprint(self, tab: int = 0) -> str:
         return _tree_pprint(self, tab)
 
-    def __str__(self):
-        return str(self._data)
+    def __str__(self) -> str:
+        return str(self.data)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
 
-def _tree_pprint(tree, tab=0):
+def _tree_pprint(tree: Tree[T], tab: int = 0) -> str:
     pad = " |" * tab + "-"
     if tree is None:
         return pad + "None\n"

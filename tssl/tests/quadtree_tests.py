@@ -3,8 +3,8 @@ import unittest
 import os
 from functools import partial
 
-import numpy as np
-import numpy.testing as npt
+import numpy as np  # type: ignore
+import numpy.testing as npt  # type: ignore
 
 from tssl import quadtree
 
@@ -36,9 +36,10 @@ class TestQuadTree(unittest.TestCase):
         array2 = tree.flatten()
         npt.assert_array_equal(array, array2)
 
-    def test_flatten2(self):
+    def test_flatten2(self) -> None:
         array = list(range(3 * quadtree._nnodes(5)))
         tree = quadtree.QuadTree.from_array(array, 5)
+
         array2 = tree.flatten()
         npt.assert_array_equal(array, array2)
         for i in range(3):

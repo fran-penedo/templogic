@@ -1,7 +1,7 @@
 import itertools as it
 import logging
 import math
-from typing import Sequence, Callable, TypeVar, Generic
+from typing import Sequence, Callable, TypeVar, List, Type, Tuple
 
 import numpy as np  # type: ignore
 
@@ -10,64 +10,64 @@ from tssl.util import Tree
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+S = TypeVar("S", bound="QuadTree")
 
 
-class QuadTree(Tree, Generic[T]):
+class QuadTree(Tree[T]):
 
     """Directions: [0, 1, 2, 3] == [NW, NE, SW, SE]
     """
 
-    def __init__(self, data: T, children: Sequence["QuadTree"]) -> None:
+    def __init__(self, data: T, children: Sequence["QuadTree[T]"]) -> None:
         super(QuadTree, self).__init__(data, children)
 
-    @Tree.children.setter
-    def children(self, value):
+    @Tree.children.setter  # type: ignore
+    def children(self, value: Sequence["QuadTree[T]"]) -> None:
         l = len(value)
         if l != 4 and l != 0:
             raise ValueError("Quad trees must have 4 children per node")
-        super(QuadTree, self.__class__).children.fset(self, value)
+        super(QuadTree, self.__class__).children.fset(self, value)  # type: ignore
 
-    def set_child(self, idx, tree):
+    def set_child(self, idx: int, tree: "Tree[T]"):
         if idx >= 4:
             raise ValueError("Quad trees must have 4 children per node")
         else:
             return super(QuadTree, self).set_child(idx, tree)
 
-    def flatten(self):
-        flat = super(QuadTree, self).flatten()
+    def flatten(self) -> List[T]:
+        flat: List = super(QuadTree, self).flatten()
         try:
-            _ = iter(self.data)
+            _ = iter(self.data)  # type: ignore
         except TypeError:
             return flat
         else:
             return list(it.chain(*zip(*flat)))
 
-    def isleaf(self):
+    def isleaf(self) -> bool:
         return self.children is None or len(self.children) == 0
 
     @classmethod
-    def from_array(cls, x, depth):
+    def from_array(cls: Type[S], x: Sequence[T], depth: int) -> S:
         q, r = divmod(len(x), _nnodes(depth))
         if r != 0 or q == 0:
             raise ValueError("Only complete quadtrees allowed")
 
-        if q > 1:
-            x = list(
-                zip(*[x[i * len(x) // q : (i + 1) * len(x) // q] for i in range(q)])
-            )
+        xx: List[Tuple[T, ...]] = list(
+            zip(*[x[i * len(x) // q : (i + 1) * len(x) // q] for i in range(q)])
+        )
 
-        level = _level(len(x)) - 1
-        trees = [[] for i in range(4 ** level)]
+        level = _level(len(xx)) - 1
+        trees: List[List[S]] = [[] for i in range(4 ** level)]
 
         while level > 0:
-            data = x[_nnodes(level - 1) : _nnodes(level)]
+            data = xx[_nnodes(level - 1) : _nnodes(level)]
             trees = [
                 [cls(data[4 * i + j], trees[4 * i + j]) for j in range(4)]
                 for i in range(len(data) // 4)
             ]
             level -= 1
 
-        return cls(x[0], trees[0])
+        return cls(xx[0], trees[0])
 
     @classmethod
     def from_matrix(cls, m: Sequence, f: Callable[[Sequence[T]], T]) -> "QuadTree":
