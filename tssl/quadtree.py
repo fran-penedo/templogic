@@ -13,7 +13,7 @@ T = TypeVar("T")
 S = TypeVar("S", bound="QuadTree")
 
 
-class QuadTree(Tree[T]):
+class QuadTree(Tree[T, "QuadTree"]):
 
     """Directions: [0, 1, 2, 3] == [NW, NE, SW, SE]
     """
@@ -28,7 +28,7 @@ class QuadTree(Tree[T]):
             raise ValueError("Quad trees must have 4 children per node")
         super(QuadTree, self.__class__).children.fset(self, value)  # type: ignore
 
-    def set_child(self, idx: int, tree: "Tree[T]"):
+    def set_child(self, idx: int, tree: "QuadTree[T]"):
         if idx >= 4:
             raise ValueError("Quad trees must have 4 children per node")
         else:
@@ -70,7 +70,7 @@ class QuadTree(Tree[T]):
         return cls(xx[0], trees[0])
 
     @classmethod
-    def from_matrix(cls, m: Sequence, f: Callable[[Sequence[T]], T]) -> "QuadTree":
+    def from_matrix(cls, m: Sequence, f: Callable[[Sequence[T]], T]) -> "QuadTree[T]":
         mm = np.array(m)
         depth = int(math.log(mm.shape[0], 2))
         if len(mm.shape) < 2 or mm.shape[0] != mm.shape[1] or 2 ** depth != mm.shape[0]:

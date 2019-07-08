@@ -6,34 +6,35 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 S = TypeVar("S")
+U = TypeVar("U", bound="Tree")
 
 
-class Tree(Generic[T]):
+class Tree(Generic[T, U]):
     """A tree data structure
     """
 
     _data: T
-    _children: List["Tree[T]"]
-    parent: Optional["Tree[T]"]
+    _children: List[U]
+    parent: Optional[U]
 
-    def __init__(self, data: T, children: Sequence["Tree[T]"]) -> None:
+    def __init__(self, data: T, children: Sequence[U]) -> None:
         self.data = data
         self.children = children
         self.parent = None
 
-    def get_child(self, idx: int) -> "Tree[T]":
+    def get_child(self, idx: int) -> U:
         return self._children[idx]
 
-    def set_child(self, idx: int, tree: "Tree[T]") -> None:
+    def set_child(self, idx: int, tree: U) -> None:
         self._children[idx] = tree
         tree.parent = self
 
     @property
-    def children(self) -> List["Tree[T]"]:
+    def children(self) -> List[U]:
         return self._children
 
     @children.setter
-    def children(self, value: Sequence["Tree[T]"]) -> None:
+    def children(self, value: Sequence[U]) -> None:
         self._children = list(value)
         for child in self._children:
             child.parent = self
@@ -86,7 +87,7 @@ class Tree(Generic[T]):
         return self.__str__()
 
 
-def _tree_pprint(tree: Tree[T], tab: int = 0) -> str:
+def _tree_pprint(tree: Tree, tab: int = 0) -> str:
     pad = " |" * tab + "-"
     if tree is None:
         return pad + "None\n"
