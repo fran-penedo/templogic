@@ -184,7 +184,12 @@ class TSSLPred(ConjTerm, TSSLTerm):
     def rho_map(
         self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
     ) -> Iterable[float]:
-        return [self.rel.value * (np.dot(self.a, model.data) - self.b)]
+        dif = len(model.data) - len(self.a)
+        if dif > 0:
+            a = np.pad(self.a, [(0, dif)], mode="constant")
+        else:
+            a = self.a
+        return [self.rel.value * (np.dot(a, model.data) - self.b)]
 
     def __str__(self):
         return "({}' x - {} {} 0)".format(str(self.a), str(self.b), str(self.rel))
