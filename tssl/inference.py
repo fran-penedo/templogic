@@ -1,8 +1,13 @@
 import logging
 
 import numpy as np  # type: ignore
+
+ROOT_LOGGER_LEVEL = logging.getLogger().getEffectiveLevel()
 import weka  # type: ignore
 from weka.classifiers import Classifier  # type: ignore
+import javabridge  # type: ignore
+
+logging.getLogger().setLevel(ROOT_LOGGER_LEVEL)
 
 from tssl import tssl, quadtree
 
@@ -32,6 +37,21 @@ class TSSLInference(Classifier):
         """
         weka.core.jvm.start()
         super().__init__(classname="weka.classifiers.rules.JRip")
+        fields = javabridge.get_env().get_object_array_elements(
+            javabridge.call(
+                self.jwrapper.class_wrapper.o,
+                "getDeclaredFields",
+                "()[Ljava/lang/reflect/Field;",
+            )
+        )
+        for field in fields:
+            name = javabridge.call(field, "getName", "()Ljava/lang/String;")
+            if name == "m_Class":
+                self._class_attribute_field = field
+                break
+
+        if not hasattr(self, "_class_attribute_field"):
+            raise Exception("JRip java class does not have m_Class field")
 
     def get_tssl_formula(self):
         """TODO: Docstring for get_tssl.
@@ -46,12 +66,14 @@ class TSSLInference(Classifier):
         else:
             return self._form
 
-    def build_classifier(self, data):
+    def build_classifier(self, data, depth, valid_class="0"):
         """TODO: Docstring for build_classifier.
 
         Parameters
         ----------
         data : TODO
+        depth : TODO
+        valid_class
 
         Returns
         -------
@@ -61,30 +83,43 @@ class TSSLInference(Classifier):
         super().build_classifier(data)
         LOGGER.debug("Built JRip classifier")
         LOGGER.debug(self)
-        self._form = parse_rules(self.jwrapper.getRuleset())
+        self._form = parse_rules(
+            self.jwrapper.getRuleset(), depth, self.class_attribute, valid_class
+        )
+
+    @property
+    def class_attribute(self):
+        return javabridge.JWrapper(
+            javabridge.call(
+                self._class_attribute_field,
+                "get",
+                "(Ljava/lang/Object;)Ljava/lang/Object;",
+                self.jwrapper,
+            )
+        )
 
 
-def parse_antd(antd):
+def parse_antd(antd, depth):
     # Attribute names are x{index}
     index = int(antd.getAttr().name()[1:])
-    label = quadtree._index_to_label(index)
+    label = quadtree._index_to_label(index, depth)
     value = antd.getSplitPoint()
 
     rel = tssl.Relation.LE if antd.getAttrValue() == 0 else tssl.Relation.GE
-    a = [0 for i in range(label[0])]
+    a = [0 for i in range(label[0] + 1)]
     a[label[0]] = 1
     cur = tssl.TSSLPred(a, value, rel)
 
     label.reverse()
     for l in label[:-1]:
-        d = tssl.Direction(l)
-        cur = tssl.TSSLExistsNext(d, cur)
+        ds = [tssl.Direction(l)]
+        cur = tssl.TSSLExistsNext(ds, cur)
 
     return cur
 
 
-def parse_rule(rule):
-    and_args = [parse_antd(antd) for antd in rule.getAntds()]
+def parse_rule(rule, depth):
+    and_args = [parse_antd(antd, depth) for antd in rule.getAntds()]
     if len(and_args) == 0:
         # FIXME might need this one
         raise Exception("Empty antecedents")
@@ -94,21 +129,35 @@ def parse_rule(rule):
         return tssl.TSSLAnd(and_args)
 
 
-def parse_rules(rules):
+def parse_rules(rules, depth, class_attr, valid_class):
     """TODO: Docstring for parse_rules.
 
     Parameters
     ----------
     rules : TODO
+    depth : TODO
 
     Returns
     -------
     TODO
 
     """
-    or_args = [parse_rule(r) for r in rules]
+    rules = list(rules)
+    assert len(rules[-1].getAntds()) == 0
+    rule_forms = [parse_rule(r, depth) for r in rules[:-1]]
+    negs = [tssl.TSSLNot(form.copy()) for form in rule_forms]
+    or_args = [
+        tssl.TSSLAnd([rule_forms[i]] + [n.copy() for n in negs[:i]])
+        for i in range(len(rule_forms))
+        if class_attr.value(rules[i].getConsequent()) == valid_class
+    ]
     if len(or_args) == 0:
-        raise NotImplementedError("Top or Bottom depending on the class")
+        if len(negs) > 0:
+            return tssl.TSSLAnd(negs)
+        elif class_attr.value(rules[-1].getConsequent()) == valid_class:
+            return tssl.TSSLTop()
+        else:
+            return tssl.TSSLBottom()
     elif len(or_args) == 1:
         return or_args[0]
     else:

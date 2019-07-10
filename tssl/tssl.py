@@ -112,6 +112,9 @@ class TSSLTerm(ABC):
     def rho_reduce(self, rhos: Iterable[float]) -> float:
         pass
 
+    def copy(self) -> "TSSLTerm":
+        return copy.copy(self)
+
     @abstractmethod
     def __str__(self) -> str:
         pass

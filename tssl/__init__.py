@@ -1,38 +1,34 @@
 import logging
 
-logger = logging.getLogger('tssl')
+logger = logging.getLogger("tssl")
 logger.addHandler(logging.NullHandler())
-
-mpl_logger = logging.getLogger('matplotlib')
-mpl_logger.setLevel(logging.WARNING)
 
 import sys
 import os
 
-FOCUSED = os.environ.get('FOCUSED', False)
+FOCUSED = os.environ.get("FOCUSED", False)
 
-if 'nose' in sys.modules.keys() and FOCUSED:
+if "nose" in sys.modules.keys() and FOCUSED:
     import logging.config
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'debug_formatter': {
-                'format': '%(levelname).1s %(module)s:%(lineno)d:%(funcName)s: %(message)s'
+
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "debug_formatter": {
+                    "format": "%(levelname).1s %(module)s:%(lineno)d:%(funcName)s: %(message)s"
+                }
             },
-        },
-        'handlers': {
-            'console': {
-                'level':'DEBUG',
-                'class':'logging.StreamHandler',
-                'formatter':'debug_formatter',
+            "handlers": {
+                "console": {
+                    "level": "DEBUG",
+                    "class": "logging.StreamHandler",
+                    "formatter": "debug_formatter",
+                }
             },
-        },
-        'loggers': {
-            'tssl': {
-                'handlers': ['console'],
-                'level': 'DEBUG',
-                'propagate': True
-            }
+            "loggers": {
+                None: {"handlers": ["console"], "level": "DEBUG", "propagate": True}
+            },
         }
-    })
+    )

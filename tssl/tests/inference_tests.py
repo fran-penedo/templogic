@@ -52,7 +52,12 @@ class TestInference(unittest.TestCase):
         npt.assert_array_equal(labels, self.labels1)
 
     def test_inference(self):
-        dataset = inference.build_dataset(self.imgs, self.labels2)
-        classifier = inference.TSSLInference()
-        classifier.build_classifier(dataset)
-        self.assertEqual(str(classifier.get_tssl_formula()), "")
+        formulas = [
+            "(¬ ([1]' x - 0.5 > 0))",
+            "((([1]' x - 0.5 > 0)) v (E_{SW} X ([1]' x - 1.0 > 0) ^ ¬ ([1]' x - 0.5 > 0)))",
+        ]
+        for i, labels in enumerate([self.labels1, self.labels2]):
+            dataset = inference.build_dataset(self.imgs, labels)
+            classifier = inference.TSSLInference()
+            classifier.build_classifier(dataset, depth=1)
+            self.assertEqual(str(classifier.get_tssl_formula()), formulas[i])
