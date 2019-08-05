@@ -5,6 +5,7 @@ import numpy as np
 
 import stlmilp.milp_util as milp
 
+
 class TestSTL(unittest.TestCase):
     def setUp(self):
         self.m = milp.create_milp("foo")
@@ -12,7 +13,9 @@ class TestSTL(unittest.TestCase):
         self.x1 = self.m.addVar(lb=-milp.GRB.INFINITY, ub=milp.GRB.INFINITY, name="x1")
 
     def test_max1(self):
-        y = milp.add_max_constr(self.m, "max", [self.x0, self.x1], 1000, nnegative=False)
+        y = milp.add_max_constr(
+            self.m, "max", [self.x0, self.x1], 1000, nnegative=False
+        )
         self.m.addConstr(self.x0 == -50.0)
         self.m.addConstr(self.x1 == 50.0)
         self.m.update()
@@ -20,7 +23,9 @@ class TestSTL(unittest.TestCase):
         self.assertAlmostEqual(y["max"].x, 50.0)
 
     def test_max2(self):
-        y = milp.add_max_constr(self.m, "max", [self.x0, self.x1], 1000, nnegative=False)
+        y = milp.add_max_constr(
+            self.m, "max", [self.x0, self.x1], 1000, nnegative=False
+        )
         self.m.addConstr(self.x0 == 50.0)
         self.m.addConstr(self.x1 == -50.0)
         self.m.update()
@@ -28,7 +33,9 @@ class TestSTL(unittest.TestCase):
         self.assertAlmostEqual(y["max"].x, 50.0)
 
     def test_min1(self):
-        y = milp.add_min_constr(self.m, "min", [self.x0, self.x1], 1000, nnegative=False)
+        y = milp.add_min_constr(
+            self.m, "min", [self.x0, self.x1], 1000, nnegative=False
+        )
         self.m.addConstr(self.x0 == -50.0)
         self.m.addConstr(self.x1 == 50.0)
         self.m.update()
@@ -36,7 +43,9 @@ class TestSTL(unittest.TestCase):
         self.assertAlmostEqual(y["min"].x, -50.0)
 
     def test_min2(self):
-        y = milp.add_min_constr(self.m, "min", [self.x0, self.x1], 1000, nnegative=False)
+        y = milp.add_min_constr(
+            self.m, "min", [self.x0, self.x1], 1000, nnegative=False
+        )
         self.m.addConstr(self.x0 == 50.0)
         self.m.addConstr(self.x1 == -50.0)
         self.m.update()
@@ -92,4 +101,27 @@ class TestSTL(unittest.TestCase):
         r2 = self.m.addConstr(self.x1 == -2)
         self.m.update()
         self.m.optimize()
+        self.assertAlmostEqual(y.x, -50)
+
+    def test_set_switch(self):
+        A = np.array([[1, 1]])
+        b = np.array([5])
+        vs = [50, -50]
+        y = milp.add_set_switch(
+            self.m, "y", [[A, b], [-A, -b]], vs, [self.x0, self.x1], 1000
+        )
+        r1 = self.m.addConstr(self.x0 == 1)
+        r2 = self.m.addConstr(self.x1 == -2)
+        self.m.update()
+        self.m.optimize()
+        self.assertAlmostEqual(y.x, 50)
+
+        self.m.remove(r1)
+        self.m.remove(r2)
+        r1 = self.m.addConstr(self.x0 == 10)
+        r2 = self.m.addConstr(self.x1 == -2)
+        self.m.update()
+        self.m.optimize()
+        # self.m.computeIIS()
+        # self.m.write("out.ilp")
         self.assertAlmostEqual(y.x, -50)
