@@ -1,5 +1,4 @@
-"""
-Module with STL definitions
+"""Module with STL definitions
 
 Author: Francisco Penedo (franp@bu.edu)
 
@@ -8,8 +7,19 @@ Author: Francisco Penedo (franp@bu.edu)
 import operator
 import copy
 import numpy as np
-from pyparsing import Word, Suppress, Optional, Combine, nums, \
-    Literal, Forward, delimitedList, alphanums, Keyword, Group
+from pyparsing import (
+    Word,
+    Suppress,
+    Optional,
+    Combine,
+    nums,
+    Literal,
+    Forward,
+    delimitedList,
+    alphanums,
+    Keyword,
+    Group,
+)
 
 # Operator constants
 EXPR = 0
@@ -25,8 +35,7 @@ GT = operator.gt
 
 
 class Signal(object):
-    """
-    Class for an observed signal.
+    """Class for an observed signal.
 
     Example: let y(t) = x1(t) + x2(t) be an observed (or secondary) signal for a
     model with primary signals x1 and x2. We can define this signal as follows:
@@ -44,7 +53,8 @@ class Signal(object):
     """
 
     def __init__(self, labels, f, bounds=None):
-        """
+        """Class for an observed signal.
+
         labels : array of functions
                  Functions that return the name of the primary signals at any
                  given time needed for this observed signal.
@@ -55,7 +65,15 @@ class Signal(object):
 
         self.labels = labels
         self.f = f
-        self.bounds = bounds if bounds else [-1,1]
+        self.bounds = bounds if bounds else [-1, 1]
+
+    @property
+    def labels(self):
+        return self._labels
+
+    @labels.setter
+    def labels(self, value):
+        self._labels = value
         try:
             if len(self.labels) >= 0:
                 self.get_vs = self._get_vs_list
@@ -69,8 +87,7 @@ class Signal(object):
         return [model.getVarByName(l) for l in self.labels(t)]
 
     def signal(self, model, t):
-        """
-        Obtain the observed signal at time t for the given model.
+        """Obtain the observed signal at time t for the given model.
 
         model : object with a getVarByName(self, signal_t) method
                 The model containing the time series for the primary signals.
@@ -84,9 +101,11 @@ class Signal(object):
         vs = self.get_vs(model, t)
         # TODO Get rid of any
         if any(var is None for var in vs):
-            raise Exception(("Couldn't find all variables in model.\n"
-                            "Labels: {}\n"
-                            "vs: {}").format([l(t) for l in self.labels], vs))
+            raise Exception(
+                (
+                    "Couldn't find all variables in model.\n" "Labels: {}\n" "vs: {}"
+                ).format([l(t) for l in self.labels], vs)
+            )
         else:
             return self.f(vs)
 
@@ -96,14 +115,15 @@ class Signal(object):
     def __repr__(self):
         return self.__str__()
 
+
 class Formula(object):
-    """
-    An STL formula.
+    """An STL formula.
 
     """
 
     def __init__(self, operator, args, bounds=None):
-        """
+        """An STL formula
+
         operator : one of EXPR, AND, OR, NOT, ALWAYS, EVENTUALLY, NEXT
         args : either a list of Formulas or a Signal
                If operator is EXPR, this is the signal corresponding to the
@@ -142,8 +162,7 @@ class Formula(object):
         return self._halways()
 
     def horizon(self):
-        """
-        Computes the time horizon of the formula
+        """Computes the time horizon of the formula
         """
         return {
             EXPR: self._hexpr,
@@ -152,45 +171,7 @@ class Formula(object):
             OR: self._hor,
             NEXT: self._hnext,
             ALWAYS: self._halways,
-            EVENTUALLY: self._heventually
-        }[self.op]()
-
-
-    def _shexpr(self):
-        return 0
-
-    def _shnot(self):
-        return 0
-
-    def _shand(self):
-        # return min(map(lambda f: f.shorizon(), self.args))
-        return min([f.shorizon() for f in self.args])
-
-
-    def _shor(self):
-        return self._shand()
-
-    def _shalways(self):
-        return self.bounds[0] + self.args[0].shorizon()
-
-    def _shnext(self):
-        return 1 + self.args[0].shorizon()
-
-    def _sheventually(self):
-        return self._shalways()
-
-    def shorizon(self):
-        """
-        Computes the time horizon of the formula
-        """
-        return {
-            EXPR: self._shexpr,
-            NOT: self._shnot,
-            AND: self._shand,
-            OR: self._shor,
-            NEXT: self._shnext,
-            ALWAYS: self._shalways,
-            EVENTUALLY: self._sheventually
+            EVENTUALLY: self._heventually,
         }[self.op]()
 
     def copy(self):
@@ -226,17 +207,23 @@ class Formula(object):
         elif self.op == NOT:
             string = "~ %s" % str(self.args[0])
         elif self.op == AND:
-            string = "(%s)" % " ^ ".join([str(arg) for arg in self.args])
+            string = "(%s)" % " & ".join([str(arg) for arg in self.args])
         elif self.op == OR:
-            string = "(%s)" % " v ".join([str(arg) for arg in self.args])
+            string = "(%s)" % " | ".join([str(arg) for arg in self.args])
         elif self.op == NEXT:
-            string = "O%s" % str(self.args[0])
+            string = "O %s" % str(self.args[0])
         elif self.op == ALWAYS:
-            string = "G_[%.2f, %.2f] %s" % \
-                                (self.bounds[0], self.bounds[1], str(self.args[0]))
+            string = "G_[%.2f, %.2f] %s" % (
+                self.bounds[0],
+                self.bounds[1],
+                str(self.args[0]),
+            )
         elif self.op == EVENTUALLY:
-            string = "F_[%.2f, %.2f] %s" % \
-                                (self.bounds[0], self.bounds[1], str(self.args[0]))
+            string = "F_[%.2f, %.2f] %s" % (
+                self.bounds[0],
+                self.bounds[1],
+                str(self.args[0]),
+            )
         else:
             raise Exception("Unrecognized op code: {}".format(self.op))
 
@@ -257,6 +244,7 @@ def perturb(f, eps):
     else:
         for arg in f.args:
             perturb(arg, eps)
+
 
 def scale_time(formula, dt):
     """Transforms a formula in continuous time to discrete time
@@ -284,24 +272,33 @@ def score(formula, model, ops, t=0):
     mmap, mreduce = ops[formula.op]
     return mreduce(mmap(formula.args, formula.bounds, model, t, ops))
 
+
 def expr_map(args, bounds, model, t, ops):
     return [args[0].signal(model, t)]
+
 
 def boolean_map(args, bounds, model, t, ops):
     return [score(arg, model, ops, t) for arg in args]
 
+
 def next_map(args, bounds, model, t, ops):
     return [score(args[0], model, ops, t + model.tinter)]
 
+
 def temp_map(args, bounds, model, t, ops):
-    return [score(args[0], model, ops, t + j) for j in
-            np.arange(bounds[0], bounds[1] + model.tinter, model.tinter)]
+    return [
+        score(args[0], model, ops, t + j)
+        for j in np.arange(bounds[0], bounds[1] + model.tinter, model.tinter)
+    ]
+
 
 def identity(xs):
     return xs[0]
 
+
 def neg(xs):
     return -xs[0]
+
 
 STL_ROBUSTNESS_OPS = {
     EXPR: [expr_map, identity],
@@ -310,27 +307,16 @@ STL_ROBUSTNESS_OPS = {
     OR: [boolean_map, max],
     NEXT: [next_map, identity],
     ALWAYS: [temp_map, min],
-    EVENTUALLY: [temp_map, max]
+    EVENTUALLY: [temp_map, max],
 }
+
 
 def robustness(formula, model, t=0):
     return score(formula, model, STL_ROBUSTNESS_OPS, t)
 
+
 class RobustnessTree(object):
-
-    """Docstring for RobustnessTree. """
-
     def __init__(self, robustness, index, children):
-        """TODO: to be defined1.
-
-        Parameters
-        ----------
-        robustness : TODO
-        index : TODO
-        children : TODO
-
-
-        """
         self.robustness = robustness
         self.index = index
         self.children = children
@@ -363,8 +349,9 @@ class RobustnessTree(object):
 def _pprint(tree, tab=0):
     pad = " |" * tab + "-"
     children = [_pprint(child, tab + 1) for child in tree.children]
-    return "{}r = {} ({})\n{}".format(pad, tree.robustness, tree.index,
-                                      "".join(children))
+    return "{}r = {} ({})\n{}".format(
+        pad, tree.robustness, tree.index, "".join(children)
+    )
 
 
 ROBUSTNESS_TREE_OPS = {
@@ -374,44 +361,16 @@ ROBUSTNESS_TREE_OPS = {
     OR: [boolean_map, RobustnessTree.max],
     NEXT: [next_map, identity],
     ALWAYS: [temp_map, RobustnessTree.min],
-    EVENTUALLY: [temp_map, RobustnessTree.max]
+    EVENTUALLY: [temp_map, RobustnessTree.max],
 }
+
 
 def robustness_tree(formula, model, t=0):
     return score(formula, model, ROBUSTNESS_TREE_OPS, t)
 
-# # FIXME used fixed time intervals
-# def old_robustness(formula, model, t=0):
-#     """
-#     Computes the robustness of a formula with respect to a model at time t.
-#
-#     The computation is recursive.
-#
-#     formula : Formula
-#     model : object as defined in Signal
-#             The model containing the values of the primary signal.
-#     time : numeric
-#            The time at which to compute the robustness.
-#     """
-#     return {
-#         EXPR: lambda: formula.args[0].signal(model, t),
-#         NOT: lambda: -robustness(formula.args[0], model, t),
-#         AND: lambda: min(robustness(f, model, t) for f in formula.args),
-#         OR: lambda: max(robustness(f, model, t) for f in formula.args),
-#         NEXT: lambda: robustness(formula.args[0], model, t + model.tinter),
-#         ALWAYS: lambda: min(robustness(formula.args[0], model, t + j) for j in
-#             np.arange(formula.bounds[0],
-#                       formula.bounds[1] + model.tinter,
-#                       model.tinter)),
-#         EVENTUALLY: lambda: max(robustness(formula.args[0], model, t + j) for j in
-#             np.arange(formula.bounds[0],
-#                       formula.bounds[1] + model.tinter,
-#                       model.tinter))
-#     }[formula.op]()
 
 def satisfies(formula, model, t=0):
-    """
-    Checks if a model satisfies a formula at some time.
+    """Checks if a model satisfies a formula at some time.
 
     Satisfaction is defined in this function as robustness >= 0.
 
@@ -427,18 +386,21 @@ def satisfies(formula, model, t=0):
 
 
 def num_parser():
-    """
-    A floating point number parser
+    """A floating point number parser
     """
     T_DOT = Literal(".")
     T_MIN = Literal("-")
     T_PLU = Literal("+")
     T_EXP = Literal("e")
-    num = Combine(Optional(T_MIN) + Word(nums) +
-                  Optional(T_DOT + Word(nums)) +
-                  Optional(T_EXP + Optional(T_MIN ^ T_PLU) + Word(nums)))
+    num = Combine(
+        Optional(T_MIN)
+        + Word(nums)
+        + Optional(T_DOT + Word(nums))
+        + Optional(T_EXP + Optional(T_MIN ^ T_PLU) + Word(nums))
+    )
     num = num.setParseAction(lambda t: float(t[0]))
     return num
+
 
 def int_parser():
     T_MIN = Literal("-")
@@ -448,8 +410,7 @@ def int_parser():
 
 
 def stl_parser(expr=None, float_bounds=True):
-    """
-    Builds an stl parser using the given expression parser.
+    """Builds an stl parser using the given expression parser.
 
     The STL grammar used is the following:
 
@@ -475,6 +436,7 @@ def stl_parser(expr=None, float_bounds=True):
 
     T_GLOB = Keyword("G", alphanums)
     T_FUT = Keyword("F", alphanums)
+    T_NEXT = Keyword("O", alphanums)
     T_LPAR, T_RPAR, T_LBRK, T_RBRK, T_UND, T_COM, T_TILD = map(Suppress, "()[]_,~")
     if float_bounds:
         num = num_parser()
@@ -488,18 +450,20 @@ def stl_parser(expr=None, float_bounds=True):
     form_and = T_LPAR + delimitedList(form, "&") + T_RPAR
     form_or = T_LPAR + delimitedList(form, "|") + T_RPAR
     form_expr = T_LPAR + expr + T_RPAR
+    form_next = T_NEXT + form
     form_alw = T_GLOB + T_UND + interval + form
     form_fut = T_FUT + T_UND + interval + form
 
-    form << (form_expr ^ form_not ^ form_and ^ form_or ^ form_alw ^ form_fut)
+    form << (
+        form_expr ^ form_not ^ form_and ^ form_or ^ form_next ^ form_alw ^ form_fut
+    )
 
     form_expr.setParseAction(lambda t: Formula(EXPR, [t[0]]))
     form_not.setParseAction(lambda t: Formula(NOT, [t[0]]))
     form_and.setParseAction(lambda t: Formula(AND, list(t)))
     form_or.setParseAction(lambda t: Formula(OR, list(t)))
-    form_alw.setParseAction(
-        lambda t: Formula(ALWAYS, [t[2]], bounds=list(t[1])))
-    form_fut.setParseAction(
-        lambda t: Formula(EVENTUALLY, [t[2]], bounds=list(t[1])))
+    form_next.setParseAction(lambda t: Formula(NEXT, [t[1]]))
+    form_alw.setParseAction(lambda t: Formula(ALWAYS, [t[2]], bounds=list(t[1])))
+    form_fut.setParseAction(lambda t: Formula(EVENTUALLY, [t[2]], bounds=list(t[1])))
 
     return form
