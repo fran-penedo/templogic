@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 import copy
 from typing import Tuple, TypeVar, Iterable, Callable, Sequence, Generic, Union
 from typing_extensions import Protocol
+from functools import reduce
 
 import numpy as np  # type: ignore
 from pyparsing import (  # type: ignore
@@ -57,6 +58,8 @@ Labels = Union[Callable[[float], Iterable[T]], Iterable[Callable[[float], T]]]
 
 class Signal(Generic[U]):
     """Class for an observed signal.
+
+    `U` is the type of a variable at a single time for the associated model
 
     Example: let y(t) = x1(t) + x2(t) be an observed (or secondary) signal for a
     model with primary signals x1 and x2. We can define this signal as follows:
@@ -115,6 +118,9 @@ class Signal(Generic[U]):
     def _get_vs(self, model: STLModel[T, U], t: float) -> Sequence[U]:
         return [model.getVarByName(l) for l in self.labels_at_t(t)]
 
+    def perturb(self, eps: Callable[["Signal[U]"], U]) -> "Signal[U]":
+        return self
+
     def signal(self, model: STLModel[T, U], t: float) -> float:
         """Obtain the observed signal at time t for the given model.
 
@@ -168,6 +174,22 @@ class STLTerm(ABC):
     delegates the concrete implementation to specific terms
     """
 
+    args: Sequence["STLTerm"]
+
+    def __init__(self, args: Sequence["STLTerm"]) -> None:
+        self.args = args
+
+    def map(self, f: Callable[["STLTerm"], "STLTerm"]) -> "STLTerm":
+        args = [arg.map(f) for arg in self.args]
+        obj = f(self)
+        obj.args = args
+        return obj
+
+    def foldMap(self, f: Callable[["STLTerm"], T], g: Callable[[Iterable[T]], T]) -> T:
+        me = f(self)
+        args = g([arg.foldMap(f, g) for arg in self.args])
+        return g([me, args])
+
     def score(
         self, model: STLModel, t: float, mmap: MMapGet[T], mreduce: MReduceGet[T]
     ) -> T:
@@ -208,6 +230,9 @@ class STLTerm(ABC):
         return max(rhos)
 
     def copy(self) -> "STLTerm":
+        return copy.deepcopy(self)
+
+    def shallowcopy(self) -> "STLTerm":
         return copy.copy(self)
 
     @abstractmethod
@@ -225,8 +250,13 @@ class ConjTerm(object):
         return min(rhos)
 
 
-class BooleanTerm(object):
-    args: Sequence[STLTerm]
+class BooleanTerm(STLTerm):
+    def __init__(self, args: Sequence[STLTerm]):
+        if len(args) == 0:
+            raise ValueError(
+                f"{self.__class__.__name__} must have at least one argument"
+            )
+        super().__init__(args)
 
     def rho_map(
         self,
@@ -241,9 +271,12 @@ class BooleanTerm(object):
         return self.rho_map(model, t, mmap, mreduce)
 
 
-class TemporalTerm(object):
-    arg: STLTerm
+class TemporalTerm(STLTerm):
     bounds: Tuple[float, float]
+
+    def __init__(self, bounds: Tuple[float, float], arg: STLTerm):
+        super().__init__([arg])
+        self.bounds = bounds
 
     def rho_map(
         self,
@@ -253,17 +286,21 @@ class TemporalTerm(object):
         mreduce: MReduceGet[float],
     ) -> Iterable[float]:
         return [
-            self.arg.score(model, t + j, mmap, mreduce)
+            self.args[0].score(model, t + j, mmap, mreduce)
             for j in np.arange(self.bounds[0], self.bounds[1] + model.tinter)
         ]
 
     def horizon_map(self, model, t, mmap, mreduce) -> Iterable[float]:
-        return [self.bounds[1] + self.arg.score(model, t, mmap, mreduce)]
+        return [self.bounds[1] + self.args[0].score(model, t, mmap, mreduce)]
 
 
 class STLPred(ConjTerm, STLTerm):
+
+    signal: Signal
+
     def __init__(self, arg: Signal):
-        self.arg: Signal = arg
+        super().__init__([])
+        self.signal = arg
 
     def rho_map(
         self,
@@ -272,7 +309,7 @@ class STLPred(ConjTerm, STLTerm):
         mmap: MMapGet[float],
         mreduce: MReduceGet[float],
     ) -> Iterable[float]:
-        return [self.arg.signal(model, t)]
+        return [self.signal.signal(model, t)]
 
     def __str__(self) -> str:
         return "(EXP)"
@@ -280,7 +317,7 @@ class STLPred(ConjTerm, STLTerm):
 
 class STLNot(ConjTerm, BooleanTerm, STLTerm):
     def __init__(self, arg: STLTerm):
-        self.args: Sequence[STLTerm] = [arg]
+        super().__init__([arg])
 
     def rho_reduce(self, rhos: Iterable[float]) -> float:
         return -super(STLNot, self).rho_reduce(rhos)
@@ -290,46 +327,28 @@ class STLNot(ConjTerm, BooleanTerm, STLTerm):
 
 
 class STLAnd(BooleanTerm, ConjTerm, STLTerm):
-    def __init__(self, args: Sequence[STLTerm]):
-        if len(args) == 0:
-            raise ValueError("STLAnd must have at least one argument")
-        self.args = args
-
     def __str__(self) -> str:
         return "({})".format(" & ".join(str(arg) for arg in self.args))
 
 
 class STLOr(BooleanTerm, DisjTerm, STLTerm):
-    def __init__(self, args: Sequence[STLTerm]):
-        if len(args) == 0:
-            raise ValueError("STLOr must have at least one argument")
-        self.args = args
-
     def __str__(self) -> str:
         return "({})".format(" | ".join(str(arg) for arg in self.args))
 
 
 class STLEventually(TemporalTerm, DisjTerm, STLTerm):
-    def __init__(self, bounds: Tuple[float, float], arg: STLTerm):
-        self.arg = arg
-        self.bounds = bounds
-
     def __str__(self) -> str:
-        return f"F_[{self.bounds[0]:.2f}, {self.bounds[1]:.2f}] {self.arg}"
+        return f"F_[{self.bounds[0]:.2f}, {self.bounds[1]:.2f}] {self.args[0]}"
 
 
 class STLAlways(TemporalTerm, ConjTerm, STLTerm):
-    def __init__(self, bounds: Tuple[float, float], arg: STLTerm):
-        self.arg = arg
-        self.bounds = bounds
-
     def __str__(self) -> str:
-        return f"G_[{self.bounds[0]:.2f}, {self.bounds[1]:.2f}] {self.arg}"
+        return f"G_[{self.bounds[0]:.2f}, {self.bounds[1]:.2f}] {self.args[0]}"
 
 
 class STLNext(ConjTerm, STLTerm):
     def __init__(self, arg: STLTerm):
-        self.arg = arg
+        super().__init__([arg])
 
     def rho_map(
         self,
@@ -338,13 +357,72 @@ class STLNext(ConjTerm, STLTerm):
         mmap: MMapGet[float],
         mreduce: MReduceGet[float],
     ) -> Iterable[float]:
-        return [self.arg.score(model, t + model.tinter, mmap, mreduce)]
+        return [self.args[0].score(model, t + model.tinter, mmap, mreduce)]
 
     def horizon_map(self, model, t, mmap, mreduce) -> Iterable[float]:
-        return [1 + self.arg.score(model, t, mmap, mreduce)]
+        return [1 + self.args[0].score(model, t, mmap, mreduce)]
 
     def __str__(self) -> str:
-        return f"O {self.arg}"
+        return f"O {self.args[0]}"
+
+
+def satisfies(formula: STLTerm, model: STLModel, t: float = 0) -> bool:
+    """Checks if a model satisfies a formula at some time.
+
+    Satisfaction is defined in this function as robustness >= 0.
+
+    formula : Formula
+    model : a model as defined in Signal
+    t : numeric
+        The time
+    """
+    return formula.robustness(model, t) >= 0
+
+
+def is_negation_form(f: STLTerm) -> bool:
+    def _neg_form(term: STLTerm) -> bool:
+        if isinstance(term, STLNot):
+            return isinstance(term.args[0], STLPred)
+        return True
+
+    return f.foldMap(_neg_form, all)
+
+
+def perturb(f: STLTerm, eps: Callable[["Signal[U]"], U]) -> STLTerm:
+    if not is_negation_form(f):
+        raise Exception("Formula not in negation form")
+
+    def _perturb(term: STLTerm) -> STLTerm:
+        if isinstance(term, STLPred):
+            term.signal.perturb(eps)
+        return term
+
+    return f.map(_perturb)
+
+
+def scale_time(f: STLTerm, dt: float):
+    """Transforms a formula in continuous time to discrete time
+
+    Substitutes the time bounds in a :class:`stlmilp.stl.STLTerm` from
+    continuous time to discrete time with time interval `dt`
+
+    Parameters
+    ----------
+    formula : :class:`stlmilp.stl.STLTerm`
+    dt : float
+
+    Returns
+    -------
+    None
+
+    """
+
+    def _scale(term: STLTerm) -> STLTerm:
+        if isinstance(term, TemporalTerm):
+            term.bounds = tuple([int(b / dt) for b in term.bounds])  # type: ignore
+        return term
+
+    f.map(_scale)
 
 
 def num_parser():
@@ -431,46 +509,6 @@ def stl_parser(expr=None, float_bounds=True):
     return form
 
 
-# def perturb(f, eps):
-#     if f.op == EXPR:
-#         f.args[0].perturb(eps)
-#     elif f.op == NOT:
-#         if f.args[0].op != EXPR:
-#             raise Exception("Formula not in negation form")
-#         else:
-#             perturb(f.args[0], eps)
-#     else:
-#         for arg in f.args:
-#             perturb(arg, eps)
-#
-#
-# def scale_time(formula, dt):
-#     """Transforms a formula in continuous time to discrete time
-#
-#     Substitutes the time bounds in a :class:`stlmilp.stl.Formula` from
-#     continuous time to discrete time with time interval `dt`
-#
-#     Parameters
-#     ----------
-#     formula : :class:`stlmilp.stl.Formula`
-#     dt : float
-#
-#     Returns
-#     -------
-#     None
-#
-#     """
-#     formula.bounds = [int(b / dt) for b in formula.bounds]
-#     for arg in formula.args:
-#         if arg.op != EXPR:
-#             scale_time(arg, dt)
-#
-#
-# def score(formula, model, ops, t=0):
-#     mmap, mreduce = ops[formula.op]
-#     return mreduce(mmap(formula.args, formula.bounds, model, t, ops))
-#
-#
 # class RobustnessTree(object):
 #     def __init__(self, robustness, index, children):
 #         self.robustness = robustness
@@ -525,17 +563,6 @@ def stl_parser(expr=None, float_bounds=True):
 #     return score(formula, model, ROBUSTNESS_TREE_OPS, t)
 #
 #
-# def satisfies(formula, model, t=0):
-#     """Checks if a model satisfies a formula at some time.
-#
-#     Satisfaction is defined in this function as robustness >= 0.
-#
-#     formula : Formula
-#     model : a model as defined in Signal
-#     t : numeric
-#         The time
-#     """
-#     return robustness(formula, model, t) >= 0
 #
 #
 # parser

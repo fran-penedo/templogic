@@ -1,4 +1,5 @@
 import unittest
+from types import MethodType
 from typing import Sequence, Callable
 
 import stlmilp.stl as stl
@@ -137,16 +138,18 @@ class TestSTL(unittest.TestCase):
         self.assertEqual(fstr, str(form))
 
     def test_perturb(self) -> None:
-        eps = lambda: None
+        eps = lambda x: x
         setattr(eps, "perturbed", 0)
 
-        def perturb(eps) -> None:
+        def perturb(self, eps) -> "stl.Signal":
             eps.perturbed += 1
+            return self
 
-        self.signal.perturb = perturb
+        setattr(self.signal, "perturb", MethodType(perturb, self.signal))
+
         stl.perturb(self.f, eps)
-        self.assertEqual(eps.perturbed, 4)
-        f = stl.Formula(stl.NOT, [self.f])
+        self.assertEqual(eps.perturbed, 4)  # type: ignore
+        f = stl.STLNot(self.f)
         with self.assertRaises(Exception):
             stl.perturb(f, eps)
 
