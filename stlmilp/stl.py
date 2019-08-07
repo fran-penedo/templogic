@@ -7,8 +7,6 @@ Author: Francisco Penedo (franp@bu.edu)
 from abc import ABC, abstractmethod
 import copy
 from typing import Tuple, TypeVar, Iterable, Callable, Sequence, Generic, Union
-from typing_extensions import Protocol
-from functools import reduce
 
 import numpy as np  # type: ignore
 from pyparsing import (  # type: ignore
@@ -147,26 +145,6 @@ class Signal(Generic[U]):
         return self.__str__()
 
 
-class MMap(Protocol[T]):
-    def __call__(
-        self,
-        model: STLModel,
-        t: float,
-        mmap: Callable[["STLTerm"], "MMap[T]"],
-        mreduce: Callable[["STLTerm"], "MReduce[T]"],
-    ) -> Iterable[T]:
-        pass
-
-
-class MReduce(Protocol[T]):
-    def __call__(self, rhos: Iterable[T]) -> T:
-        pass
-
-
-MMapGet = Callable[["STLTerm"], MMap[T]]
-MReduceGet = Callable[["STLTerm"], MReduce[T]]
-
-
 class STLTerm(ABC):
     """Any STL term is derived from this class
 
@@ -187,47 +165,16 @@ class STLTerm(ABC):
 
     def foldMap(self, f: Callable[["STLTerm"], T], g: Callable[[Iterable[T]], T]) -> T:
         me = f(self)
-        args = g([arg.foldMap(f, g) for arg in self.args])
-        return g([me, args])
+        return g([me] + [arg.foldMap(f, g) for arg in self.args])
 
-    def score(
-        self, model: STLModel, t: float, mmap: MMapGet[T], mreduce: MReduceGet[T]
+    def temporalFoldMap(
+        self,
+        f: Callable[["STLTerm", float], T],
+        g: Callable[[Iterable[T]], T],
+        t: float,
     ) -> T:
-        return mreduce(self)(mmap(self)(model, t, mmap, mreduce))
-
-    def horizon(self) -> int:
-        return self.score(  # type: ignore # Passing None to score
-            None, 0, lambda obj: obj.horizon_map, lambda obj: obj.horizon_reduce
-        )
-
-    def robustness(self, model: STLModel, t: float = 0) -> float:
-        return self.score(model, t, lambda obj: obj.rho_map, lambda obj: obj.rho_reduce)
-
-    @abstractmethod
-    def rho_map(
-        self,
-        model: STLModel,
-        t: float,
-        mmap: MMapGet[float],
-        mreduce: MReduceGet[float],
-    ) -> Iterable[float]:
-        pass
-
-    def horizon_map(
-        self,
-        model: STLModel,
-        t: float,
-        mmap: MMapGet[float],
-        mreduce: MReduceGet[float],
-    ) -> Iterable[float]:
-        return [0]
-
-    @abstractmethod
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        pass
-
-    def horizon_reduce(self, rhos: Iterable[float]) -> float:
-        return max(rhos)
+        me = f(self, t)
+        return g([me] + [arg.temporalFoldMap(f, g, t) for arg in self.args])
 
     def copy(self) -> "STLTerm":
         return copy.deepcopy(self)
@@ -240,14 +187,12 @@ class STLTerm(ABC):
         pass
 
 
-class DisjTerm(object):
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        return max(rhos)
+class DisjTerm(STLTerm):
+    pass
 
 
-class ConjTerm(object):
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        return min(rhos)
+class ConjTerm(STLTerm):
+    pass
 
 
 class BooleanTerm(STLTerm):
@@ -258,18 +203,6 @@ class BooleanTerm(STLTerm):
             )
         super().__init__(args)
 
-    def rho_map(
-        self,
-        model: STLModel,
-        t: float,
-        mmap: MMapGet[float],
-        mreduce: MReduceGet[float],
-    ) -> Iterable[float]:
-        return [arg.score(model, t, mmap, mreduce) for arg in self.args]
-
-    def horizon_map(self, model, t, mmap, mreduce) -> Iterable[float]:
-        return self.rho_map(model, t, mmap, mreduce)
-
 
 class TemporalTerm(STLTerm):
     bounds: Tuple[float, float]
@@ -278,20 +211,20 @@ class TemporalTerm(STLTerm):
         super().__init__([arg])
         self.bounds = bounds
 
-    def rho_map(
+    def temporalFoldMap(
         self,
-        model: STLModel,
+        f: Callable[["STLTerm", float], T],
+        g: Callable[[Iterable[T]], T],
         t: float,
-        mmap: MMapGet[float],
-        mreduce: MReduceGet[float],
-    ) -> Iterable[float]:
-        return [
-            self.args[0].score(model, t + j, mmap, mreduce)
-            for j in np.arange(self.bounds[0], self.bounds[1] + model.tinter)
-        ]
-
-    def horizon_map(self, model, t, mmap, mreduce) -> Iterable[float]:
-        return [self.bounds[1] + self.args[0].score(model, t, mmap, mreduce)]
+    ) -> T:
+        me = f(self, t)
+        return g(
+            [me]
+            + [
+                self.args[0].temporalFoldMap(f, g, t + j)
+                for j in np.arange(self.bounds[0], self.bounds[1] + 1)
+            ]
+        )
 
 
 class STLPred(ConjTerm, STLTerm):
@@ -302,15 +235,6 @@ class STLPred(ConjTerm, STLTerm):
         super().__init__([])
         self.signal = arg
 
-    def rho_map(
-        self,
-        model: STLModel,
-        t: float,
-        mmap: MMapGet[float],
-        mreduce: MReduceGet[float],
-    ) -> Iterable[float]:
-        return [self.signal.signal(model, t)]
-
     def __str__(self) -> str:
         return "(EXP)"
 
@@ -318,9 +242,6 @@ class STLPred(ConjTerm, STLTerm):
 class STLNot(ConjTerm, BooleanTerm, STLTerm):
     def __init__(self, arg: STLTerm):
         super().__init__([arg])
-
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        return -super(STLNot, self).rho_reduce(rhos)
 
     def __str__(self) -> str:
         return "~ {}".format(str(self.args[0]))
@@ -350,20 +271,70 @@ class STLNext(ConjTerm, STLTerm):
     def __init__(self, arg: STLTerm):
         super().__init__([arg])
 
-    def rho_map(
+    def temporalFoldMap(
         self,
-        model: STLModel,
+        f: Callable[["STLTerm", float], T],
+        g: Callable[[Iterable[T]], T],
         t: float,
-        mmap: MMapGet[float],
-        mreduce: MReduceGet[float],
-    ) -> Iterable[float]:
-        return [self.args[0].score(model, t + model.tinter, mmap, mreduce)]
-
-    def horizon_map(self, model, t, mmap, mreduce) -> Iterable[float]:
-        return [1 + self.args[0].score(model, t, mmap, mreduce)]
+    ) -> T:
+        me = f(self, t)
+        return g([me, self.args[0].temporalFoldMap(f, g, t + 1)])
 
     def __str__(self) -> str:
         return f"O {self.args[0]}"
+
+
+def robustness(formula: STLTerm, model: STLModel, t: float = 0) -> float:
+    def _rob(term: STLTerm, t: float) -> Tuple[STLTerm, float]:
+        if isinstance(term, STLPred):
+            r = term.signal.signal(model, t)
+        elif isinstance(term, ConjTerm):
+            r = np.inf
+        elif isinstance(term, DisjTerm):
+            r = -np.inf
+        else:
+            raise Exception(f"Non exhaustive pattern matching {term.__class__}")
+        return (term, r)
+
+    def _reduce(robs: Iterable[Tuple[STLTerm, float]]) -> Tuple[STLTerm, float]:
+        rs = list(robs)
+        rr = [r[1] for r in rs]
+        term = rs[0][0]
+        if isinstance(term, STLNot):
+            r = -rr[1]
+        elif isinstance(term, ConjTerm):
+            r = min(rr)
+        elif isinstance(term, DisjTerm):
+            r = max(rr)
+        else:
+            raise Exception(f"Non exhaustive pattern matching {term.__class__}")
+        return (term, r)
+
+    f = scale_time(formula, model.tinter)
+    return f.temporalFoldMap(_rob, _reduce, t)[1]
+
+
+def horizon(formula: STLTerm) -> float:
+    def _hor(term: STLTerm) -> Tuple[STLTerm, float]:
+        if isinstance(term, TemporalTerm):
+            h = term.bounds[1]
+        elif isinstance(term, STLNext):
+            h = 1
+        else:
+            h = 0
+        return (term, h)
+
+    def _reduce(hors: Iterable[Tuple[STLTerm, float]]) -> Tuple[STLTerm, float]:
+        lhors = list(hors)
+        hs = [h[1] for h in lhors]
+        term = lhors[0][0]
+        if isinstance(term, TemporalTerm) or isinstance(term, STLNext):
+            h = sum(hs)
+        else:
+            h = max(hs)
+        return (term, h)
+
+    return formula.foldMap(_hor, _reduce)[1]
 
 
 def satisfies(formula: STLTerm, model: STLModel, t: float = 0) -> bool:
@@ -376,7 +347,7 @@ def satisfies(formula: STLTerm, model: STLModel, t: float = 0) -> bool:
     t : numeric
         The time
     """
-    return formula.robustness(model, t) >= 0
+    return robustness(formula, model, t) >= 0
 
 
 def is_negation_form(f: STLTerm) -> bool:
@@ -400,7 +371,7 @@ def perturb(f: STLTerm, eps: Callable[["Signal[U]"], U]) -> STLTerm:
     return f.map(_perturb)
 
 
-def scale_time(f: STLTerm, dt: float):
+def scale_time(f: STLTerm, dt: float) -> STLTerm:
     """Transforms a formula in continuous time to discrete time
 
     Substitutes the time bounds in a :class:`stlmilp.stl.STLTerm` from
@@ -418,11 +389,12 @@ def scale_time(f: STLTerm, dt: float):
     """
 
     def _scale(term: STLTerm) -> STLTerm:
-        if isinstance(term, TemporalTerm):
-            term.bounds = tuple([int(b / dt) for b in term.bounds])  # type: ignore
-        return term
+        obj = term.shallowcopy()
+        if isinstance(obj, TemporalTerm):
+            obj.bounds = tuple([int(b / dt) for b in obj.bounds])  # type: ignore
+        return obj
 
-    f.map(_scale)
+    return f.map(_scale)
 
 
 def num_parser():

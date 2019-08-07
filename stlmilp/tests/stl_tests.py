@@ -51,39 +51,43 @@ class TestSTL(unittest.TestCase):
         self.model = _Model(self.s)
 
     def test_horizon(self) -> None:
-        self.assertEqual(self.f.horizon(), 13)
+        self.assertEqual(stl.horizon(self.f), 13)
 
     def test_robustness_expr(self) -> None:
         f = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
-        self.assertEqual(f.robustness(self.model, 2), self.s[2] + 3)
+        self.assertEqual(stl.robustness(f, self.model, 2), self.s[2] + 3)
 
     def test_robustness_not(self) -> None:
         g = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
         f = stl.STLNot(g)
-        self.assertEqual(f.robustness(self.model, 2), -(self.s[2] + 3))
+        self.assertEqual(stl.robustness(f, self.model, 2), -(self.s[2] + 3))
 
     def test_robustness_and(self) -> None:
         g = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
         h = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 1))
         f = stl.STLAnd([g, h])
-        self.assertEqual(f.robustness(self.model, 2), min(self.s[2] + 3, self.s[2] + 1))
+        self.assertEqual(
+            stl.robustness(f, self.model, 2), min(self.s[2] + 3, self.s[2] + 1)
+        )
 
     def test_robustness_or(self) -> None:
         g = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
         h = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 1))
         f = stl.STLOr([g, h])
-        self.assertEqual(f.robustness(self.model, 2), max(self.s[2] + 3, self.s[2] + 1))
+        self.assertEqual(
+            stl.robustness(f, self.model, 2), max(self.s[2] + 3, self.s[2] + 1)
+        )
 
     def test_robustness_next(self) -> None:
         g = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
         f = stl.STLNext(g)
-        self.assertEqual(f.robustness(self.model, 2), self.s[3] + 3)
+        self.assertEqual(stl.robustness(f, self.model, 2), self.s[3] + 3)
 
     def test_robustness_always(self) -> None:
         g = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
         f = stl.STLAlways((1, 3), g)
         self.assertEqual(
-            f.robustness(self.model, 2),
+            stl.robustness(f, self.model, 2),
             min(self.s[3] + 3, self.s[4] + 3, self.s[5] + 3),
         )
 
@@ -91,14 +95,14 @@ class TestSTL(unittest.TestCase):
         g = stl.STLPred(stl.Signal(self.labels, lambda x: x[0] + 3))
         f = stl.STLEventually((1, 3), g)
         self.assertEqual(
-            f.robustness(self.model, 2),
+            stl.robustness(f, self.model, 2),
             max(self.s[3] + 3, self.s[4] + 3, self.s[5] + 3),
         )
 
     def test_robustness(self) -> None:
-        self.assertEqual(self.f.robustness(self.model, 0), -3)
+        self.assertEqual(stl.robustness(self.f, self.model, 0), -3)
         self.signal.labels = lambda x: [x]
-        self.assertEqual(self.f.robustness(self.model, 0), -3)
+        self.assertEqual(stl.robustness(self.f, self.model, 0), -3)
 
     def test_robustness_tree(self) -> None:
         tree = stl.robustness_tree(self.f, self.model, 0)
@@ -155,7 +159,7 @@ class TestSTL(unittest.TestCase):
 
     def test_scale_time(self) -> None:
         forig = str(self.f)
-        stl.scale_time(self.f, 0.5)
-        self.assertEqual(self.f.args[0].bounds[0], 6)
-        stl.scale_time(self.f, 2.0)
-        self.assertEqual(str(self.f), forig)
+        f = stl.scale_time(self.f, 0.5)
+        self.assertEqual(f.args[0].bounds[0], 6)  # type: ignore
+        f = stl.scale_time(f, 2.0)
+        self.assertEqual(str(f), forig)
