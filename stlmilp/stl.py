@@ -163,18 +163,13 @@ class STLTerm(ABC):
         obj.args = args
         return obj
 
-    def foldMap(self, f: Callable[["STLTerm"], T], g: Callable[[Iterable[T]], T]) -> T:
-        me = f(self)
-        return g([me] + [arg.foldMap(f, g) for arg in self.args])
+    def fold(self, g: Callable[["STLTerm", Iterable[T]], T]) -> T:
+        return g(self, [arg.fold(g) for arg in self.args])
 
-    def temporalFoldMap(
-        self,
-        f: Callable[["STLTerm", float], T],
-        g: Callable[[Iterable[T]], T],
-        t: float,
+    def temporalFold(
+        self, g: Callable[["STLTerm", float, Iterable[T]], T], t: float
     ) -> T:
-        me = f(self, t)
-        return g([me] + [arg.temporalFoldMap(f, g, t) for arg in self.args])
+        return g(self, t, [arg.temporalFold(g, t) for arg in self.args])
 
     def copy(self) -> "STLTerm":
         return copy.deepcopy(self)
@@ -211,19 +206,16 @@ class TemporalTerm(STLTerm):
         super().__init__([arg])
         self.bounds = bounds
 
-    def temporalFoldMap(
-        self,
-        f: Callable[["STLTerm", float], T],
-        g: Callable[[Iterable[T]], T],
-        t: float,
+    def temporalFold(
+        self, g: Callable[["STLTerm", float, Iterable[T]], T], t: float
     ) -> T:
-        me = f(self, t)
         return g(
-            [me]
-            + [
-                self.args[0].temporalFoldMap(f, g, t + j)
+            self,
+            t,
+            [
+                self.args[0].temporalFold(g, t + j)
                 for j in np.arange(self.bounds[0], self.bounds[1] + 1)
-            ]
+            ],
         )
 
 
@@ -271,70 +263,44 @@ class STLNext(ConjTerm, STLTerm):
     def __init__(self, arg: STLTerm):
         super().__init__([arg])
 
-    def temporalFoldMap(
-        self,
-        f: Callable[["STLTerm", float], T],
-        g: Callable[[Iterable[T]], T],
-        t: float,
+    def temporalFold(
+        self, g: Callable[["STLTerm", float, Iterable[T]], T], t: float
     ) -> T:
-        me = f(self, t)
-        return g([me, self.args[0].temporalFoldMap(f, g, t + 1)])
+        return g(self, t, [self.args[0].temporalFold(g, t + 1)])
 
     def __str__(self) -> str:
         return f"O {self.args[0]}"
 
 
 def robustness(formula: STLTerm, model: STLModel, t: float = 0) -> float:
-    def _rob(term: STLTerm, t: float) -> Tuple[STLTerm, float]:
+    def _rob(term: STLTerm, t: float, robs: Iterable[float]) -> float:
         if isinstance(term, STLPred):
-            r = term.signal.signal(model, t)
+            return term.signal.signal(model, t)
+        elif isinstance(term, STLNot):
+            return -list(robs)[0]
         elif isinstance(term, ConjTerm):
-            r = np.inf
+            return min(robs)
         elif isinstance(term, DisjTerm):
-            r = -np.inf
+            return max(robs)
         else:
             raise Exception(f"Non exhaustive pattern matching {term.__class__}")
-        return (term, r)
-
-    def _reduce(robs: Iterable[Tuple[STLTerm, float]]) -> Tuple[STLTerm, float]:
-        rs = list(robs)
-        rr = [r[1] for r in rs]
-        term = rs[0][0]
-        if isinstance(term, STLNot):
-            r = -rr[1]
-        elif isinstance(term, ConjTerm):
-            r = min(rr)
-        elif isinstance(term, DisjTerm):
-            r = max(rr)
-        else:
-            raise Exception(f"Non exhaustive pattern matching {term.__class__}")
-        return (term, r)
 
     f = scale_time(formula, model.tinter)
-    return f.temporalFoldMap(_rob, _reduce, t)[1]
+    return f.temporalFold(_rob, t)
 
 
 def horizon(formula: STLTerm) -> float:
-    def _hor(term: STLTerm) -> Tuple[STLTerm, float]:
+    def _hor(term: STLTerm, hors: Iterable[float]) -> float:
         if isinstance(term, TemporalTerm):
-            h = term.bounds[1]
+            return term.bounds[1] + list(hors)[0]
         elif isinstance(term, STLNext):
-            h = 1
+            return 1 + list(hors)[0]
+        elif isinstance(term, STLPred):
+            return 0
         else:
-            h = 0
-        return (term, h)
+            return max(hors)
 
-    def _reduce(hors: Iterable[Tuple[STLTerm, float]]) -> Tuple[STLTerm, float]:
-        lhors = list(hors)
-        hs = [h[1] for h in lhors]
-        term = lhors[0][0]
-        if isinstance(term, TemporalTerm) or isinstance(term, STLNext):
-            h = sum(hs)
-        else:
-            h = max(hs)
-        return (term, h)
-
-    return formula.foldMap(_hor, _reduce)[1]
+    return formula.fold(_hor)
 
 
 def satisfies(formula: STLTerm, model: STLModel, t: float = 0) -> bool:
@@ -351,12 +317,12 @@ def satisfies(formula: STLTerm, model: STLModel, t: float = 0) -> bool:
 
 
 def is_negation_form(f: STLTerm) -> bool:
-    def _neg_form(term: STLTerm) -> bool:
+    def _neg_form(term: STLTerm, values: Iterable[bool]) -> bool:
         if isinstance(term, STLNot):
             return isinstance(term.args[0], STLPred)
-        return True
+        return all(values)
 
-    return f.foldMap(_neg_form, all)
+    return f.fold(_neg_form)
 
 
 def perturb(f: STLTerm, eps: Callable[["Signal[U]"], U]) -> STLTerm:
