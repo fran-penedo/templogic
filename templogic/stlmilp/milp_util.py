@@ -1,4 +1,7 @@
-import gurobipy as g
+from typing import Sequence, Iterable, Callable, Tuple, Union
+
+import gurobipy as g  # type: ignore
+from gurobipy import Model as gModel, Var as gVar
 
 import logging
 
@@ -7,8 +10,8 @@ logger = logging.getLogger(__name__)
 GRB = g.GRB
 
 
-def create_milp(name, minim=True):
-    m = g.Model(name)
+def create_milp(name: str, minim: bool = True) -> gModel:
+    m = gModel(name)
     m.modelSense = g.GRB.MINIMIZE if minim else g.GRB.MAXIMIZE
     return m
 
@@ -16,13 +19,20 @@ def create_milp(name, minim=True):
 # Common transformations
 
 
-def delta_label(l, i):
+def delta_label(l: str, i: int) -> str:
     return l + "_" + str(i)
 
 
 def add_minmax_constr(
-    m, label, args, K, op="min", nnegative=True, start=GRB.UNDEFINED, start_index=None
-):
+    m: gModel,
+    label: str,
+    args: Sequence[gVar],
+    K: float,
+    op: str = "min",
+    nnegative: bool = True,
+    start: float = GRB.UNDEFINED,
+    start_index: int = None,
+) -> gVar:
     """Adds the constraint label = op{args} to the milp m
 
     Parameters
@@ -82,36 +92,54 @@ def add_minmax_constr(
 
 
 def add_max_constr(
-    m, label, args, K, nnegative=True, start=GRB.UNDEFINED, start_index=None
-):
+    m: gModel,
+    label: str,
+    args: Sequence[gVar],
+    K: float,
+    nnegative: bool = True,
+    start: float = GRB.UNDEFINED,
+    start_index: int = None,
+) -> gVar:
     return add_minmax_constr(m, label, args, K, "max", nnegative, start, start_index)
 
 
 def add_min_constr(
-    m, label, args, K, nnegative=True, start=GRB.UNDEFINED, start_index=None
-):
+    m: gModel,
+    label: str,
+    args: Sequence[gVar],
+    K: float,
+    nnegative: bool = True,
+    start: float = GRB.UNDEFINED,
+    start_index: int = None,
+) -> gVar:
     return add_minmax_constr(m, label, args, K, "min", nnegative, start, start_index)
 
 
-def add_abs_var(m, label, var, obj):
+def add_abs_var(m: gModel, label: str, var: gVar, obj: float) -> gVar:
     if m.modelSense == g.GRB.MINIMIZE:
         z = m.addVar(name="abs_" + label, obj=obj)
         m.update()
         m.addConstr(z >= var)
         m.addConstr(z >= -var)
         return z
-
     else:
-        return None
+        raise NotImplementedError()
 
 
-def add_penalty(m, label, var, obj):
+def add_penalty(m: gModel, label: str, var: gVar, obj: float) -> gVar:
     m.setAttr("OBJ", [var], [-obj])
     y = add_abs_var(m, label, var, obj)
     return y
 
 
-def add_set_flag(m, label, x_var, A, b, K):
+def add_set_flag(
+    m: gModel,
+    label: str,
+    x_var: gVar,
+    A: Sequence[Sequence[float]],
+    b: Sequence[float],
+    K: float,
+) -> gVar:
     if len(A) == 1:
         delta = m.addVar(vtype=g.GRB.BINARY, name=label)
         deltas = [delta]
@@ -140,7 +168,9 @@ def add_set_flag(m, label, x_var, A, b, K):
     return delta
 
 
-def add_binary_switch(m, label, v1, v2, delta, K):
+def add_binary_switch(
+    m: gModel, label: str, v1: float, v2: float, delta: gVar, K: float
+) -> gVar:
     y = m.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name=label)
 
     m.addConstr(y <= v1 + delta * K)
@@ -152,7 +182,14 @@ def add_binary_switch(m, label, v1, v2, delta, K):
     return y
 
 
-def add_set_switch(m, label, sets, vs, x_var, K):
+def add_set_switch(
+    m: gModel,
+    label: str,
+    sets: Sequence[Tuple],
+    vs: Sequence[float],
+    x_var: gVar,
+    K: float,
+) -> gVar:
     if len(sets) != 2:
         raise NotImplementedError("Only implemented for two complementary sets")
 

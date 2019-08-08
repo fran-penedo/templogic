@@ -76,6 +76,9 @@ class Signal(Generic[U]):
 
     """
 
+    labels: Labels
+    bounds: Tuple[float, float]
+
     def __init__(
         self,
         labels: Labels,
@@ -94,7 +97,7 @@ class Signal(Generic[U]):
 
         self.labels = labels
         self.f = f
-        self.bounds = bounds if bounds else [-1, 1]
+        self.bounds = bounds if bounds else (-1, 1)
 
     @property
     def labels(self) -> Labels:

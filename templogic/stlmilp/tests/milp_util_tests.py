@@ -1,18 +1,18 @@
 import logging
 import unittest
 
-import numpy as np
+import numpy as np  # type: ignore
 
-import stlmilp.milp_util as milp
+from .. import milp_util as milp
 
 
 class TestSTL(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.m = milp.create_milp("foo")
         self.x0 = self.m.addVar(lb=-milp.GRB.INFINITY, ub=milp.GRB.INFINITY, name="x0")
         self.x1 = self.m.addVar(lb=-milp.GRB.INFINITY, ub=milp.GRB.INFINITY, name="x1")
 
-    def test_max1(self):
+    def test_max1(self) -> None:
         y = milp.add_max_constr(
             self.m, "max", [self.x0, self.x1], 1000, nnegative=False
         )
@@ -22,7 +22,7 @@ class TestSTL(unittest.TestCase):
         self.m.optimize()
         self.assertAlmostEqual(y["max"].x, 50.0)
 
-    def test_max2(self):
+    def test_max2(self) -> None:
         y = milp.add_max_constr(
             self.m, "max", [self.x0, self.x1], 1000, nnegative=False
         )
@@ -32,7 +32,7 @@ class TestSTL(unittest.TestCase):
         self.m.optimize()
         self.assertAlmostEqual(y["max"].x, 50.0)
 
-    def test_min1(self):
+    def test_min1(self) -> None:
         y = milp.add_min_constr(
             self.m, "min", [self.x0, self.x1], 1000, nnegative=False
         )
@@ -42,7 +42,7 @@ class TestSTL(unittest.TestCase):
         self.m.optimize()
         self.assertAlmostEqual(y["min"].x, -50.0)
 
-    def test_min2(self):
+    def test_min2(self) -> None:
         y = milp.add_min_constr(
             self.m, "min", [self.x0, self.x1], 1000, nnegative=False
         )
@@ -52,7 +52,7 @@ class TestSTL(unittest.TestCase):
         self.m.optimize()
         self.assertAlmostEqual(y["min"].x, -50.0)
 
-    def test_abs(self):
+    def test_abs(self) -> None:
         y = milp.add_abs_var(self.m, "abs", self.x0, 1)
         r = self.m.addConstr(self.x0 == 50)
         self.m.update()
@@ -64,7 +64,7 @@ class TestSTL(unittest.TestCase):
         self.m.optimize()
         self.assertAlmostEqual(y.x, 50)
 
-    def test_set_flag(self):
+    def test_set_flag(self) -> None:
         A = np.array([[1, 0], [0, 1]])
         b = np.array([5, 5])
         delta = milp.add_set_flag(self.m, "delta", [self.x0, self.x1], A, b, 1000)
@@ -84,7 +84,7 @@ class TestSTL(unittest.TestCase):
         # self.m.write("out.ilp")
         self.assertAlmostEqual(delta.x, 1)
 
-    def test_binary_switch(self):
+    def test_binary_switch(self) -> None:
         A = np.array([[1, 1]])
         b = np.array([5])
         delta = milp.add_set_flag(self.m, "delta", [self.x0, self.x1], A, b, 1000)
@@ -103,12 +103,12 @@ class TestSTL(unittest.TestCase):
         self.m.optimize()
         self.assertAlmostEqual(y.x, -50)
 
-    def test_set_switch(self):
+    def test_set_switch(self) -> None:
         A = np.array([[1, 1]])
         b = np.array([5])
         vs = [50, -50]
         y = milp.add_set_switch(
-            self.m, "y", [[A, b], [-A, -b]], vs, [self.x0, self.x1], 1000
+            self.m, "y", [(A, b), (-A, -b)], vs, [self.x0, self.x1], 1000
         )
         r1 = self.m.addConstr(self.x0 == 1)
         r2 = self.m.addConstr(self.x1 == -2)

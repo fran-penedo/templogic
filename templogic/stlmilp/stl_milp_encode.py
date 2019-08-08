@@ -1,14 +1,40 @@
+from typing import (
+    Sequence,
+    Iterable,
+    Callable,
+    Tuple,
+    Union,
+    cast,
+    Optional,
+    Mapping,
+    Type,
+)
 import logging
 
-import stl
-from milp_util import add_min_constr, add_max_constr, add_penalty, create_milp, GRB
+from . import stl
+from .milp_util import (
+    add_min_constr,
+    add_max_constr,
+    add_penalty,
+    create_milp,
+    GRB,
+    gModel,
+    gVar,
+)
 
 logger = logging.getLogger(__name__)
 
-def _stl_expr(m, label, f, t, start_robustness_tree=None):
-    expr = f.args[0].signal(m, t)
+
+def _stl_expr(
+    m: gModel,
+    label: str,
+    f: stl.STLPred,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
+    expr = f.signal.signal(m, t)
     if expr is not None:
-        bounds = f.args[0].bounds
+        bounds = f.signal.bounds
         if start_robustness_tree is not None:
             r = start_robustness_tree.robustness
         else:
@@ -18,14 +44,21 @@ def _stl_expr(m, label, f, t, start_robustness_tree=None):
         m.addConstr(y == expr)
         return y, bounds
     else:
-        return None, None
+        raise NotImplementedError()
 
-def _stl_not(m, label, f, t, start_robustness_tree=None):
+
+def _stl_not(
+    m: gModel,
+    label: str,
+    f: stl.STLNot,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     if start_robustness_tree is not None:
-        tree = start_robustness_tree.children[0]
+        tree: Optional[stl.RobustnessTree] = start_robustness_tree.children[0]
     else:
         tree = None
-    if f.args[0].op == stl.NOT:
+    if isinstance(f.args[0], stl.STLNot):
         if tree is not None:
             tree = tree.children[0]
         return add_stl_constr(m, label, f.args[0].args[0], t, tree)
@@ -40,14 +73,22 @@ def _stl_not(m, label, f, t, start_robustness_tree=None):
         m.addConstr(y == -x)
         return y, bounds
     else:
-        return None, None
+        raise NotImplementedError()
 
-def _stl_and_or(m, label, f, t, op, start_robustness_tree=None):
+
+def _stl_and_or(
+    m: gModel,
+    label: str,
+    f: Union[stl.STLAnd, stl.STLOr],
+    t: float,
+    op: str,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     xx = []
     boundss = []
     for i, ff in enumerate(f.args):
         if start_robustness_tree is not None:
-            tree = start_robustness_tree.children[i]
+            tree: Optional[stl.RobustnessTree] = start_robustness_tree.children[i]
         else:
             tree = None
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), ff, t, tree)
@@ -57,72 +98,130 @@ def _stl_and_or(m, label, f, t, op, start_robustness_tree=None):
 
     if len(xx) > 0:
         # I'm not gonna bother using the best bounds
-        bounds = map(max, zip(*boundss))
-        K = max(map(abs, bounds))
+        bounds = list(map(max, zip(*boundss)))  # type: ignore # zip issues
+        K = max([abs(b) for b in bounds])
         add = add_min_constr if op == "and" else add_max_constr
         if start_robustness_tree is not None:
             r, index = start_robustness_tree.robustness, start_robustness_tree.index
         else:
-            r, index = GRB.UNDEFINED, None
+            r, index = GRB.UNDEFINED, None  # type: ignore
         y = add(m, label, xx, K, nnegative=False, start=r, start_index=index)[label]
         return y, bounds
 
     else:
-        return None, None
+        raise NotImplementedError()
 
-def _stl_and(m, label, f, t, start_robustness_tree=None):
+
+def _stl_and(
+    m: gModel,
+    label: str,
+    f: stl.STLAnd,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     return _stl_and_or(m, label, f, t, "and", start_robustness_tree)
 
-def _stl_or(m, label, f, t, start_robustness_tree=None):
+
+def _stl_or(
+    m: gModel,
+    label: str,
+    f: stl.STLOr,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     return _stl_and_or(m, label, f, t, "or", start_robustness_tree)
 
-def _stl_next(m, label, f, t, start_robustness_tree=None):
-    return add_stl_constr(m, label, f.args[0], t+1, start_robustness_tree)
 
-def _stl_always_eventually(m, label, f, t, op, start_robustness_tree=None):
+def _stl_next(
+    m: gModel,
+    label: str,
+    f: stl.STLNext,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
+    return add_stl_constr(m, label, f.args[0], t + 1, start_robustness_tree)
+
+
+def _stl_always_eventually(
+    m: gModel,
+    label: str,
+    f: Union[stl.STLEventually, stl.Always],
+    t: float,
+    op: str,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     xx = []
     boundss = []
     # if f.bounds[0] == f.bounds[1]:
     #     b1 = f.bounds[0]
     #     b2 = f.bounds[1] + 1
     # else:
-    b1, b2 = f.bounds
+    b1, b2 = [int(b) for b in f.bounds]
     for i in range(b1, b2 + 1):
         if start_robustness_tree is not None:
             tree = start_robustness_tree.children[i - b1]
         else:
-            tree = None
-        x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
-                                   t + i, tree)
+            tree = None  # type: ignore
+        x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0], t + i, tree)
         if x is not None:
             xx.append(x)
             boundss.append(bounds)
 
     if len(xx) > 0:
         # I'm not gonna bother using the best bounds
-        bounds = map(max, zip(*boundss))
-        K = max(map(abs, bounds))
+        bounds = map(max, zip(*boundss))  # type: ignore
+        K = max([abs(b) for b in bounds])
         add = add_min_constr if op == "alw" else add_max_constr
         if start_robustness_tree is not None:
             r, index = start_robustness_tree.robustness, start_robustness_tree.index
         else:
-            r, index = GRB.UNDEFINED, None
+            r, index = GRB.UNDEFINED, None  # type: ignore
         y = add(m, label, xx, K, nnegative=False, start=r, start_index=index)[label]
         return y, bounds
 
     else:
-        return None, None
+        raise NotImplementedError()
 
-def _stl_always(m, label, f, t, start_robustness_tree=None):
+
+def _stl_always(
+    m: gModel,
+    label: str,
+    f: stl.STLAlways,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     return _stl_always_eventually(m, label, f, t, "alw", start_robustness_tree)
 
-def _stl_eventually(m, label, f, t, start_robustness_tree=None):
+
+def _stl_eventually(
+    m: gModel,
+    label: str,
+    f: stl.STLEventually,
+    t: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
     return _stl_always_eventually(m, label, f, t, "eve", start_robustness_tree)
 
 
-def add_stl_constr(m, label, f, t=0, start_robustness_tree=None):
-    """
-    Adds the stl constraint f at time t to the milp m.
+_ADD_TABLE = {
+    stl.STLPred: _stl_expr,
+    stl.STLNot: _stl_not,
+    stl.STLAnd: _stl_and,
+    stl.STLOr: _stl_or,
+    stl.STLAlways: _stl_always,
+    stl.STLNext: _stl_next,
+    stl.STLEventually: _stl_eventually,
+}
+
+
+def add_stl_constr(
+    m: gModel,
+    label: str,
+    f: stl.STLTerm,
+    t: float = 0,
+    start_robustness_tree: stl.RobustnessTree = None,
+) -> Tuple[gVar, Tuple[float, float]]:
+    """Adds the stl constraint f at time t to the milp m.
 
     Parameters
     ----------
@@ -140,32 +239,46 @@ def add_stl_constr(m, label, f, t=0, start_robustness_tree=None):
         the MIP
 
     """
-    return {
-        stl.EXPR: _stl_expr,
-        stl.NOT: _stl_not,
-        stl.AND: _stl_and,
-        stl.OR: _stl_or,
-        stl.ALWAYS: _stl_always,
-        stl.NEXT: _stl_next,
-        stl.EVENTUALLY: _stl_eventually
-    }[f.op](m, label, f, t, start_robustness_tree)
+    return _ADD_TABLE[f.__class__](  # type: ignore
+        m, label, f, t, start_robustness_tree
+    )
 
-def add_always_constr(m, label, a, b, rho, K, t=0):
-    y = add_min_constr(m, label, rho[(t + a):(t + b + 1)], K)[label]
+
+def add_always_constr(
+    m: gModel, label: str, a: int, b: int, rho: Sequence[gVar], K: float, t: int = 0
+) -> gVar:
+    y = add_min_constr(m, label, rho[(t + a) : (t + b + 1)], K)[label]
     return y
 
-def add_always_penalized(m, label, a, b, rho, K, obj, t=0):
+
+def add_always_penalized(
+    m: gModel,
+    label: str,
+    a: int,
+    b: int,
+    rho: Sequence[gVar],
+    K: float,
+    obj: float,
+    t: int = 0,
+) -> gVar:
     y = add_always_constr(m, label, a, b, rho, K, t)
     add_penalty(m, label, y, obj)
     return y
 
 
 def build_and_solve(
-    spec, model_encode_f, spec_obj, start_robustness_tree=None,
-    outputflag=None, numericfocus=None, threads=4, log_files=True):
+    spec: stl.STLTerm,
+    model_encode_f: Callable,  # FIXME
+    spec_obj: float,
+    start_robustness_tree: stl.RobustnessTree = None,
+    outputflag: int = None,
+    numericfocus: int = None,
+    threads: int = 4,
+    log_files: bool = True,
+) -> gModel:
     # print spec
     if spec is not None:
-        hd = max(0, spec.horizon()) + 1
+        hd = max(0, stl.horizon(spec)) + 1
     else:
         hd = 0
 
@@ -177,7 +290,9 @@ def build_and_solve(
         logger.debug("Adding STL constraints")
         if start_robustness_tree is not None:
             logger.debug("Using starting robustness tree")
-        fvar, vbds = add_stl_constr(m, "spec", spec, start_robustness_tree=start_robustness_tree)
+        fvar, vbds = add_stl_constr(
+            m, "spec", spec, start_robustness_tree=start_robustness_tree
+        )
         fvar.setAttr("obj", spec_obj)
 
     if outputflag is not None:
@@ -194,16 +309,17 @@ def build_and_solve(
         m.write("out.lp")
     logger.debug(
         "Optimizing MILP with {} variables ({} binary) and {} constraints".format(
-            m.numvars, m.numbinvars, m.numconstrs))
+            m.numvars, m.numbinvars, m.numconstrs
+        )
+    )
     m.optimize()
     logger.debug("Finished optimizing")
     if log_files:
         f = open("out_vars.txt", "w")
         for v in m.getVars():
-            print >> f, v
+            print(v, f)
         f.close()
 
     if m.status != GRB.status.OPTIMAL:
         logger.warning("MILP returned status: {}".format(m.status))
     return m
-
