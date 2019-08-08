@@ -5,7 +5,7 @@ import os
 import numpy as np  # type: ignore
 import numpy.testing as npt  # type: ignore
 
-from tssl import tssl, quadtree
+from .. import tssl, quadtree
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 FOCUSED = os.environ.get("FOCUSED", False)

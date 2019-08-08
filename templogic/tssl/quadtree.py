@@ -5,7 +5,7 @@ from typing import Sequence, Callable, TypeVar, List, Type, Tuple
 
 import numpy as np  # type: ignore
 
-from tssl.util import Tree
+from templogic.util import Tree
 
 logger = logging.getLogger(__name__)
 

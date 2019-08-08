@@ -9,7 +9,7 @@ import javabridge  # type: ignore
 
 logging.getLogger().setLevel(ROOT_LOGGER_LEVEL)
 
-from tssl import tssl, quadtree
+from . import tssl, quadtree
 
 LOGGER = logging.getLogger(__name__)
 

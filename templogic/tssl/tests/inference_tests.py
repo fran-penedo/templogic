@@ -5,7 +5,7 @@ import os
 import numpy as np  # type: ignore
 import numpy.testing as npt  # type: ignore
 
-from tssl import inference
+from .. import inference
 
 LOGGER = logging.getLogger(__name__)
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))

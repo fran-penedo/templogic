@@ -7,7 +7,7 @@ from typing_extensions import Protocol
 
 import numpy as np  # type: ignore
 
-from tssl.quadtree import QuadTree
+from .quadtree import QuadTree
 
 
 logger = logging.getLogger(__name__)
