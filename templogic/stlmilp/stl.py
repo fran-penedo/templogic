@@ -23,6 +23,8 @@ from pyparsing import (  # type: ignore
     Group,
 )
 
+from templogic import util
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -363,6 +365,40 @@ def scale_time(f: STLTerm, dt: float) -> STLTerm:
     return f.map(_scale)
 
 
+TreeData = Tuple[float, int]
+
+
+class RobustnessTree(util.Tree[TreeData, "RobustnessTree"]):
+    @property
+    def robustness(self) -> float:
+        return self._data[0]
+
+    @property
+    def index(self) -> int:
+        return self._data[1]
+
+
+def robustness_tree(formula: STLTerm, model: STLModel, t: float = 0) -> RobustnessTree:
+    def _rob(term: STLTerm, t: float, robs: Iterable[RobustnessTree]) -> RobustnessTree:
+        robs = list(robs)
+        if isinstance(term, STLPred):
+            return RobustnessTree((term.signal.signal(model, t), 0), [])
+        elif isinstance(term, STLNot):
+            child = robs[0]
+            return RobustnessTree((-child.robustness, 0), [child])
+        elif isinstance(term, ConjTerm):
+            i = np.argmin([r.robustness for r in robs])
+            return RobustnessTree((robs[i].robustness, i), robs)
+        elif isinstance(term, DisjTerm):
+            i = np.argmax([r.robustness for r in robs])
+            return RobustnessTree((robs[i].robustness, i), robs)
+        else:
+            raise Exception(f"Non exhaustive pattern matching {term.__class__}")
+
+    f = scale_time(formula, model.tinter)
+    return f.temporalFold(_rob, t)
+
+
 def num_parser():
     """A floating point number parser
     """
@@ -419,7 +455,7 @@ def stl_parser(expr=None, float_bounds=True):
     if float_bounds:
         num = num_parser()
     else:
-        num = Word(nums).setParseAction(lambda t: int(t[0]))
+        num = int_parser()
     interval = Group(T_LBRK + num + T_COM + num + T_RBRK)
 
     form = Forward()
@@ -445,62 +481,3 @@ def stl_parser(expr=None, float_bounds=True):
     form_fut.setParseAction(lambda t: STLEventually(arg=t[2], bounds=tuple(t[1])))
 
     return form
-
-
-# class RobustnessTree(object):
-#     def __init__(self, robustness, index, children):
-#         self.robustness = robustness
-#         self.index = index
-#         self.children = children
-#
-#     @classmethod
-#     def expr_map(cls, args, bounds, model, t, ops):
-#         return [cls(expr_map(args, bounds, model, t, ops)[0], 0, [])]
-#
-#     @classmethod
-#     def neg(cls, xs):
-#         return cls(-xs[0].robustness, 0, xs)
-#
-#     @classmethod
-#     def _minmax(cls, xs, op):
-#         i = op([x.robustness for x in xs])
-#         return cls(xs[i].robustness, i, xs)
-#
-#     @classmethod
-#     def min(cls, xs):
-#         return cls._minmax(xs, np.argmin)
-#
-#     @classmethod
-#     def max(cls, xs):
-#         return cls._minmax(xs, np.argmax)
-#
-#     def pprint(self, tab=0):
-#         return _pprint(self, tab)
-#
-#
-# def _pprint(tree, tab=0):
-#     pad = " |" * tab + "-"
-#     children = [_pprint(child, tab + 1) for child in tree.children]
-#     return "{}r = {} ({})\n{}".format(
-#         pad, tree.robustness, tree.index, "".join(children)
-#     )
-#
-#
-# ROBUSTNESS_TREE_OPS = {
-#     EXPR: [RobustnessTree.expr_map, identity],
-#     NOT: [boolean_map, RobustnessTree.neg],
-#     AND: [boolean_map, RobustnessTree.min],
-#     OR: [boolean_map, RobustnessTree.max],
-#     NEXT: [next_map, identity],
-#     ALWAYS: [temp_map, RobustnessTree.min],
-#     EVENTUALLY: [temp_map, RobustnessTree.max],
-# }
-#
-#
-# def robustness_tree(formula, model, t=0):
-#     return score(formula, model, ROBUSTNESS_TREE_OPS, t)
-#
-#
-#
-#
-# parser

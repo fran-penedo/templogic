@@ -106,8 +106,8 @@ class TestSTL(unittest.TestCase):
 
     def test_robustness_tree(self) -> None:
         tree = stl.robustness_tree(self.f, self.model, 0)
-        self.assertEqual(tree.robustness, -3)
         print(tree.pprint())
+        self.assertEqual(tree.robustness, -3)
 
     def test_parser(self) -> None:
         parser = stl.stl_parser()
