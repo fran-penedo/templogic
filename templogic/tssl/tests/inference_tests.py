@@ -21,7 +21,7 @@ def tearDownModule():
 
 
 class TestInference(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.imgs = [
             [[[1], [1]], [[0], [0]]],
             [[[1], [0]], [[0], [0]]],
@@ -43,7 +43,7 @@ class TestInference(unittest.TestCase):
         self.labels1 = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
         self.labels2 = [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0]
 
-    def test_build_dataset(self):
+    def test_build_dataset(self) -> None:
         dataset = inference.build_dataset(self.imgs, self.labels1)
         for i in range(5):
             self.assertEqual(dataset.attribute(i).name, "x{}".format(i))
@@ -51,7 +51,7 @@ class TestInference(unittest.TestCase):
         labels = [inst.get_value(5) for inst in dataset]
         npt.assert_array_equal(labels, self.labels1)
 
-    def test_inference(self):
+    def test_inference(self) -> None:
         formulas = [
             "(¬ ([1]' x - 0.5 > 0))",
             "((([1]' x - 0.5 > 0)) v (E_{SW} X ([1]' x - 1.0 > 0) ^ ¬ ([1]' x - 0.5 > 0)))",

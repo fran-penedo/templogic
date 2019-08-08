@@ -1,4 +1,5 @@
 import logging
+from typing import Iterable, Callable, Tuple, Sequence
 
 import numpy as np  # type: ignore
 
@@ -11,16 +12,16 @@ logging.getLogger().setLevel(ROOT_LOGGER_LEVEL)
 
 from . import tssl, quadtree
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 IRIS = "/usr/share/data/weka/iris.arff"
 
 
-def start_jvm():
+def start_jvm() -> None:
     weka.core.jvm.start()
 
 
-def stop_jvm():
+def stop_jvm() -> None:
     weka.core.jvm.stop()
 
 
@@ -31,10 +32,9 @@ class TSSLInference(Classifier):
     rules into a TSSL formula
     """
 
-    def __init__(self):
-        """TODO: to be defined1.
+    _form: tssl.TSSLTerm
 
-        """
+    def __init__(self) -> None:
         weka.core.jvm.start()
         super().__init__(classname="weka.classifiers.rules.JRip")
         fields = javabridge.get_env().get_object_array_elements(
@@ -53,36 +53,16 @@ class TSSLInference(Classifier):
         if not hasattr(self, "_class_attribute_field"):
             raise Exception("JRip java class does not have m_Class field")
 
-    def get_tssl_formula(self):
-        """TODO: Docstring for get_tssl.
-
-        Returns
-        -------
-        TODO
-
-        """
+    def get_tssl_formula(self) -> tssl.TSSLTerm:
         if self._form is None:
             raise Exception("Classifier has not been built")
         else:
             return self._form
 
-    def build_classifier(self, data, depth, valid_class="0"):
-        """TODO: Docstring for build_classifier.
-
-        Parameters
-        ----------
-        data : TODO
-        depth : TODO
-        valid_class
-
-        Returns
-        -------
-        TODO
-
-        """
+    def build_classifier(self, data, depth: int, valid_class: str = "0") -> None:
         super().build_classifier(data)
-        LOGGER.debug("Built JRip classifier")
-        LOGGER.debug(self)
+        logger.debug("Built JRip classifier")
+        logger.debug(self)
         self._form = parse_rules(
             self.jwrapper.getRuleset(), depth, self.class_attribute, valid_class
         )
@@ -99,7 +79,7 @@ class TSSLInference(Classifier):
         )
 
 
-def parse_antd(antd, depth):
+def parse_antd(antd, depth: int) -> tssl.TSSLTerm:
     # Attribute names are x{index}
     index = int(antd.getAttr().name()[1:])
     label = quadtree._index_to_label(index, depth)
@@ -108,7 +88,7 @@ def parse_antd(antd, depth):
     rel = tssl.Relation.LE if antd.getAttrValue() == 0 else tssl.Relation.GE
     a = [0 for i in range(label[0] + 1)]
     a[label[0]] = 1
-    cur = tssl.TSSLPred(a, value, rel)
+    cur: tssl.TSSLTerm = tssl.TSSLPred(a, value, rel)
 
     label.reverse()
     for l in label[:-1]:
@@ -118,7 +98,7 @@ def parse_antd(antd, depth):
     return cur
 
 
-def parse_rule(rule, depth):
+def parse_rule(rule, depth: int) -> tssl.TSSLTerm:
     and_args = [parse_antd(antd, depth) for antd in rule.getAntds()]
     if len(and_args) == 0:
         # FIXME might need this one
@@ -129,19 +109,7 @@ def parse_rule(rule, depth):
         return tssl.TSSLAnd(and_args)
 
 
-def parse_rules(rules, depth, class_attr, valid_class):
-    """TODO: Docstring for parse_rules.
-
-    Parameters
-    ----------
-    rules : TODO
-    depth : TODO
-
-    Returns
-    -------
-    TODO
-
-    """
+def parse_rules(rules, depth: int, class_attr, valid_class: str) -> tssl.TSSLTerm:
     rules = list(rules)
     assert len(rules[-1].getAntds()) == 0
     rule_forms = [parse_rule(r, depth) for r in rules[:-1]]
@@ -164,7 +132,11 @@ def parse_rules(rules, depth, class_attr, valid_class):
         return tssl.TSSLOr(or_args)
 
 
-def build_dataset(imgs, labels, fun=np.mean):
+def build_dataset(
+    imgs: np.ndarray,
+    labels: Iterable,
+    fun: Callable[[Sequence[float]], float] = np.mean,
+):
     """TODO: Docstring for build_dataset.
 
     Parameters
@@ -187,12 +159,12 @@ def build_dataset(imgs, labels, fun=np.mean):
     return dataset
 
 
-def _att_label(label):
+def _att_label(label: str) -> str:
     index = int(label[1:]) - 1
     return "x{}".format(str(index))
 
 
-def _create_dataset(data):
+def _create_dataset(data: np.ndarray):
     dataset = weka.core.dataset.create_instances_from_lists(data)
     dataset.class_is_last()
     filt = weka.filters.Filter(
@@ -203,7 +175,7 @@ def _create_dataset(data):
 
 
 # Test images
-def build_spirals(shape=(16, 16), maxspirals=5):
+def build_spirals(shape: Tuple[int, int] = (16, 16), maxspirals: int = 5) -> np.ndarray:
     img = np.random.binomial(1, 0.5, shape)
     nspirals = np.random.choice(maxspirals + 1)
     compatible = False
