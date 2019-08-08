@@ -1,1 +1,3 @@
--e .
+-e .[inference]
+nose
+typing-extensions

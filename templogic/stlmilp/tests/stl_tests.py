@@ -2,7 +2,7 @@ import unittest
 from types import MethodType
 from typing import Sequence, Callable
 
-import stlmilp.stl as stl
+from .. import stl
 
 import logging
 
