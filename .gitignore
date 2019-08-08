@@ -1,2 +1,6 @@
 .coverage
 cover/
+.srclist
+.tmuxp.yaml
+tags
+*.egg-info
