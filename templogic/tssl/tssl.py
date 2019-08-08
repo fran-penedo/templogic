@@ -2,8 +2,7 @@ import copy
 import logging
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Tuple, TypeVar, Iterable, Callable, Sequence
-from typing_extensions import Protocol
+from typing import Tuple, TypeVar, Iterable, Callable, Sequence, Union
 
 import numpy as np  # type: ignore
 
@@ -56,10 +55,18 @@ class TSSLModel(object):
         self.qtree = qtree
         self.bound = bound
 
-    def zoom(self, d: Direction) -> "TSSLModel":
-        copy = self.copy()
-        if not copy.qtree.isleaf():
-            copy.qtree = copy.qtree.children[d.value]
+    def zoom(self, d: Union[Direction, Iterable[Direction]]) -> "TSSLModel":
+        try:
+            ds = list(iter(d))  # type: ignore # testing d
+        except TypeError:
+            ds = [d]  # type: ignore # d tested as Direction
+        copy = self.shallowcopy()
+        qtree = copy.qtree
+        for direction in ds:
+            if qtree.isleaf():
+                break
+            qtree = qtree.children[direction.value]
+        copy.qtree = qtree
         return copy
 
     @property
@@ -67,26 +74,10 @@ class TSSLModel(object):
         return self.qtree.data
 
     def copy(self) -> "TSSLModel":
+        return copy.deepcopy(self)
+
+    def shallowcopy(self) -> "TSSLModel":
         return copy.copy(self)
-
-
-class MMap(Protocol[T]):
-    def __call__(
-        self,
-        model: TSSLModel,
-        mmap: Callable[["TSSLTerm"], "MMap[T]"],
-        mreduce: Callable[["TSSLTerm"], "MReduce[T]"],
-    ) -> Iterable[T]:
-        pass
-
-
-class MReduce(Protocol[T]):
-    def __call__(self, rhos: Iterable[T]) -> T:
-        pass
-
-
-MMapGet = Callable[["TSSLTerm"], MMap[T]]
-MReduceGet = Callable[["TSSLTerm"], MReduce[T]]
 
 
 class TSSLTerm(ABC):
@@ -96,23 +87,31 @@ class TSSLTerm(ABC):
     delegates the concrete implementation to specific terms
     """
 
-    def score(self, model: TSSLModel, mmap: MMapGet[T], mreduce: MReduceGet[T]) -> T:
-        return mreduce(self)(mmap(self)(model, mmap, mreduce))
+    args: Sequence["TSSLTerm"]
 
-    def robustness(self, model: TSSLModel) -> float:
-        return self.score(model, lambda obj: obj.rho_map, lambda obj: obj.rho_reduce)
+    def __init__(self, args: Sequence["TSSLTerm"]) -> None:
+        self.args = args
 
-    @abstractmethod
-    def rho_map(
-        self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
-    ) -> Iterable[float]:
-        pass
+    def map(self, f: Callable[["TSSLTerm"], "TSSLTerm"]) -> "TSSLTerm":
+        args = [arg.map(f) for arg in self.args]
+        obj = f(self)
+        obj.args = args
+        return obj
 
-    @abstractmethod
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        pass
+    def fold(self, g: Callable[["TSSLTerm", Iterable[T]], T]) -> T:
+        return g(self, [arg.fold(g) for arg in self.args])
+
+    def directionalFold(
+        self,
+        g: Callable[["TSSLTerm", Iterable[Direction], Iterable[T]], T],
+        dirs: Iterable[Direction],
+    ) -> T:
+        return g(self, dirs, [arg.directionalFold(g, dirs) for arg in self.args])
 
     def copy(self) -> "TSSLTerm":
+        return copy.deepcopy(self)
+
+    def shallowcopy(self) -> "TSSLTerm":
         return copy.copy(self)
 
     @abstractmethod
@@ -120,51 +119,53 @@ class TSSLTerm(ABC):
         pass
 
 
-class DisjTerm(object):
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        return max(rhos)
+class DisjTerm(TSSLTerm):
+    pass
 
 
-class ConjTerm(object):
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        return min(rhos)
+class ConjTerm(TSSLTerm):
+    pass
 
 
-class BooleanTerm(object):
-    args: Sequence[TSSLTerm]
+class BooleanTerm(TSSLTerm):
+    def __init__(self, args: Sequence[TSSLTerm]):
+        if len(args) == 0:
+            raise ValueError(
+                f"{self.__class__.__name__} must have at least one argument"
+            )
+        super().__init__(args)
 
-    def rho_map(
-        self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
-    ) -> Iterable[float]:
-        return [arg.score(model, mmap, mreduce) for arg in self.args]
 
-
-class DirectionTerm(object):
-    arg: TSSLTerm
+class DirectionTerm(TSSLTerm):
     dirs: Iterable[Direction]
 
-    def rho_map(
-        self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
-    ) -> Iterable[float]:
-        # FIXME the .25 only makes sense for mean-based quadtrees
-        return [0.25 * self.arg.score(model.zoom(d), mmap, mreduce) for d in self.dirs]
+    def __init__(self, dirs: Iterable[Direction], arg: TSSLTerm):
+        super().__init__([arg])
+        self.dirs = dirs
+
+    def directionalFold(
+        self,
+        g: Callable[["TSSLTerm", Iterable[Direction], Iterable[T]], T],
+        dirs: Iterable[Direction],
+    ) -> T:
+        return g(
+            self,
+            dirs,
+            [self.args[0].directionalFold(g, list(dirs) + [d]) for d in self.dirs],
+        )
 
 
 class TSSLTop(ConjTerm, TSSLTerm):
-    def rho_map(
-        self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
-    ) -> Iterable[float]:
-        return [min(model.bound)]
+    def __init__(self):
+        super().__init__([])
 
     def __str__(self) -> str:
         return "T"
 
 
 class TSSLBottom(ConjTerm, TSSLTerm):
-    def rho_map(
-        self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
-    ) -> Iterable[float]:
-        return [-max(model.bound)]
+    def __init__(self):
+        super().__init__([])
 
     def __str__(self) -> str:
         return "_|_"
@@ -180,19 +181,10 @@ class TSSLPred(ConjTerm, TSSLTerm):
     rel: Relation
 
     def __init__(self, a: Sequence[float], b: float, rel: Relation):
+        super().__init__([])
         self.a = a
         self.b = b
         self.rel = rel
-
-    def rho_map(
-        self, model: TSSLModel, mmap: MMapGet[float], mreduce: MReduceGet[float]
-    ) -> Iterable[float]:
-        dif = len(model.data) - len(self.a)
-        if dif > 0:
-            a = np.pad(self.a, [(0, dif)], mode="constant")
-        else:
-            a = self.a
-        return [self.rel.value * (np.dot(a, model.data) - self.b)]
 
     def __str__(self):
         return "({}' x - {} {} 0)".format(str(self.a), str(self.b), str(self.rel))
@@ -200,52 +192,59 @@ class TSSLPred(ConjTerm, TSSLTerm):
 
 class TSSLNot(ConjTerm, BooleanTerm, TSSLTerm):
     def __init__(self, arg: TSSLTerm):
-        self.args: Sequence[TSSLTerm] = [arg]
-
-    def rho_reduce(self, rhos: Iterable[float]) -> float:
-        return -super(TSSLNot, self).rho_reduce(rhos)
+        super().__init__([arg])
 
     def __str__(self) -> str:
         return "¬ {}".format(str(self.args[0]))
 
 
 class TSSLAnd(BooleanTerm, ConjTerm, TSSLTerm):
-    def __init__(self, args: Sequence[TSSLTerm]):
-        if len(args) == 0:
-            raise ValueError("TSSLAnd must have at least one argument")
-        self.args = args
-
     def __str__(self) -> str:
         return "({})".format(" ^ ".join(str(arg) for arg in self.args))
 
 
 class TSSLOr(BooleanTerm, DisjTerm, TSSLTerm):
-    def __init__(self, args: Sequence[TSSLTerm]):
-        if len(args) == 0:
-            raise ValueError("TSSLOr must have at least one argument")
-        self.args = args
-
     def __str__(self) -> str:
         return "({})".format(" v ".join(str(arg) for arg in self.args))
 
 
 class TSSLExistsNext(DirectionTerm, DisjTerm, TSSLTerm):
-    def __init__(self, dirs: Iterable[Direction], arg: TSSLTerm):
-        self.arg = arg
-        self.dirs = dirs
-
     def __str__(self) -> str:
         return "E_{{{}}} X {}".format(
-            ",".join(str(d) for d in self.dirs), str(self.arg)
+            ",".join(str(d) for d in self.dirs), str(self.args[0])
         )
 
 
 class TSSLForallNext(DirectionTerm, ConjTerm, TSSLTerm):
-    def __init__(self, dirs: Iterable[Direction], arg: TSSLTerm):
-        self.arg = arg
-        self.dirs = dirs
-
     def __str__(self) -> str:
         return "A_{{{}}} X {}".format(
-            ",".join(str(d) for d in self.dirs), str(self.arg)
+            ",".join(str(d) for d in self.dirs), str(self.args[0])
         )
+
+
+def robustness(formula: TSSLTerm, model: TSSLModel) -> float:
+    def _rob(term: TSSLTerm, dirs: Iterable[Direction], robs: Iterable[float]) -> float:
+        if isinstance(term, DirectionTerm):
+            robs = [0.25 * r for r in robs]  # FIXME might not be correct
+        if isinstance(term, TSSLTop):
+            return min(model.bound)
+        elif isinstance(term, TSSLBottom):
+            return -max(model.bound)
+        elif isinstance(term, TSSLPred):
+            zoomed_model = model.zoom(dirs)
+            dif = len(zoomed_model.data) - len(term.a)
+            if dif > 0:
+                a = np.pad(term.a, [(0, dif)], mode="constant")
+            else:
+                a = term.a
+            return term.rel.value * (np.dot(a, zoomed_model.data) - term.b)
+        elif isinstance(term, TSSLNot):
+            return -list(robs)[0]
+        elif isinstance(term, ConjTerm):
+            return min(robs)
+        elif isinstance(term, DisjTerm):
+            return max(robs)
+        else:
+            raise Exception(f"Non exhaustive pattern matching {term.__class__}")
+
+    return formula.directionalFold(_rob, [])

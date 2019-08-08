@@ -41,5 +41,5 @@ class TestTSSL(unittest.TestCase):
     def test_robustness(self) -> None:
         qt = quadtree.QuadTree.from_matrix([[[0], [1]], [[2], [3]]], np.mean)
         model = tssl.TSSLModel(qt, (4,))
-        npt.assert_equal(self.f.robustness(model), -0.25)
-        npt.assert_equal(self.f.args[1].robustness(model), 0.75)
+        npt.assert_equal(tssl.robustness(self.f, model), -0.25)
+        npt.assert_equal(tssl.robustness(self.f.args[1], model), 0.75)
