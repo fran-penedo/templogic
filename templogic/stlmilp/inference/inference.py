@@ -12,11 +12,12 @@ import signal
 
 import numpy as np
 
-from stlmilp.stl import Formula, AND, OR, NOT, satisfies, robustness
-import lltinf.impurity as impurity
-from lltinf.llt import make_llt_primitives, split_groups, SimpleModel
+from ..stl import Formula, AND, OR, NOT, satisfies, robustness
+from . import impurity
+from ..llt import make_llt_primitives, split_groups, SimpleModel
 
 logger = logging.getLogger(__name__)
+
 
 class Traces(object):
     """
@@ -30,7 +31,11 @@ class Traces(object):
         labels : list of labels
                  Each label should be either 1 or -1
         """
-        self._signals = np.array([], dtype=float) if signals is None else np.array(signals, dtype=float)
+        self._signals = (
+            np.array([], dtype=float)
+            if signals is None
+            else np.array(signals, dtype=float)
+        )
         self._labels = np.array([] if labels is None else list(labels))
 
     @property
@@ -67,16 +72,18 @@ class Traces(object):
 
     def copy(self):
         return Traces(self._signals.copy(), self._labels.copy())
+
     def __len__(self):
         return len(self.signals)
+
 
 class DTree(object):
     """
     Decission tree recursive structure
 
     """
-    def __init__(self, primitive, traces, robustness=None,
-                 left=None, right=None):
+
+    def __init__(self, primitive, traces, robustness=None, left=None, right=None):
         """
         primitive : a LLTFormula object
                     The node's primitive
@@ -103,13 +110,20 @@ class DTree(object):
         self.right = tree.right
 
     def copy(self):
-        return DTree(self.primitive, self.traces, self.robustness, self.left, self.right)
+        return DTree(
+            self.primitive, self.traces, self.robustness, self.left, self.right
+        )
 
     def deep_copy(self):
         left = None if self.left is None else self.left.deep_copy()
         right = None if self.right is None else self.right.deep_copy()
         return DTree(
-            self.primitive.copy(), self.traces.copy(), self.robustness.copy(), left, right)
+            self.primitive.copy(),
+            self.traces.copy(),
+            self.robustness.copy(),
+            left,
+            right,
+        )
 
     def classify(self, signal, interpolate=False, tinter=None):
         """
@@ -136,16 +150,9 @@ class DTree(object):
         left = self.primitive
         right = Formula(NOT, [self.primitive])
         if self.left is not None:
-            left = Formula(AND, [
-                self.primitive,
-                self.left.get_formula()
-            ])
+            left = Formula(AND, [self.primitive, self.left.get_formula()])
         if self.right is not None:
-            return Formula(OR, [left,
-                                Formula(AND, [
-                                    right,
-                                    self.right.get_formula()
-            ])])
+            return Formula(OR, [left, Formula(AND, [right, self.right.get_formula()])])
         else:
             return left
 
@@ -204,10 +211,14 @@ def _pprint(tree, tab=0):
         return pad + "None\n"
     left = _pprint(tree.left, tab + 1)
     right = _pprint(tree.right, tab + 1)
-    return "{}{} ({})\n{}{}".format(pad, str(tree.primitive), len(tree.traces), left, right)
+    return "{}{} ({})\n{}{}".format(
+        pad, str(tree.primitive), len(tree.traces), left, right
+    )
+
 
 def _pool_initializer():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 
 class LLTInf(object):
     """
@@ -243,10 +254,18 @@ class LLTInf(object):
     TODO: Fix comments
 
     """
-    def __init__(self, depth=1, primitive_factory=make_llt_primitives,
-                 optimize_impurity=impurity.ext_inf_gain,
-                 stop_condition=None, redo_after_failed=1, optimizer_args=None,
-                 times=None, fallback_impurity=impurity.inf_gain):
+
+    def __init__(
+        self,
+        depth=1,
+        primitive_factory=make_llt_primitives,
+        optimize_impurity=impurity.ext_inf_gain,
+        stop_condition=None,
+        redo_after_failed=1,
+        optimizer_args=None,
+        times=None,
+        fallback_impurity=impurity.inf_gain,
+    ):
         self.depth = depth
         self.primitive_factory = primitive_factory
         self.optimize_impurity = optimize_impurity
@@ -267,8 +286,9 @@ class LLTInf(object):
         self.tree = None
         self.redo_after_failed = redo_after_failed
         self._partial_add = 0
-        if 'workers' not in self.optimizer_args:
+        if "workers" not in self.optimizer_args:
             self.pool = multiprocess.Pool(initializer=_pool_initializer)
+
             def pool_map(func, iterable):
                 try:
                     return self.pool.map_async(func, iterable).get(timeout=5)
@@ -276,21 +296,22 @@ class LLTInf(object):
                     self.pool.terminate()
                     self.pool.join()
                     raise KeyboardInterrupt()
+
             self.pool_map = pool_map
-            self.optimizer_args['workers'] = self.pool_map
+            self.optimizer_args["workers"] = self.pool_map
 
     def __del__(self):
-        if hasattr(self, 'pool'):
+        if hasattr(self, "pool"):
             self.pool.terminate()
             self.pool.join()
 
     def __exit__(self):
-        if hasattr(self, 'pool'):
+        if hasattr(self, "pool"):
             self.pool.terminate()
             self.pool.join()
 
     def fit(self, traces, disp=False):
-        np.seterr(all='ignore')
+        np.seterr(all="ignore")
         self.tree = self._lltinf(traces, None, self.depth, disp=disp)
         return self
 
@@ -302,8 +323,8 @@ class LLTInf(object):
             failed = set()
             for i in range(len(preds)):
                 leaf = self.tree.add_signal(
-                    traces.signals[i], traces.labels[i], self.interpolate,
-                    self.tinter)
+                    traces.signals[i], traces.labels[i], self.interpolate, self.tinter
+                )
                 if preds[i] != traces.labels[i]:
                     failed.add(leaf)
 
@@ -317,8 +338,12 @@ class LLTInf(object):
             else:
                 for leaf in failed:
                     # TODO don't redo whole node, only leaf
-                    tree = self._lltinf(leaf.traces, leaf.robustness,
-                                        self.depth - leaf.depth(), disp=disp)
+                    tree = self._lltinf(
+                        leaf.traces,
+                        leaf.robustness,
+                        self.depth - leaf.depth(),
+                        disp=disp,
+                    )
                     old_tree = leaf.copy()
                     leaf.set_tree(tree)
 
@@ -331,8 +356,9 @@ class LLTInf(object):
 
     def predict(self, signals):
         if self.tree is not None:
-            return np.array([self.tree.classify(s, self.interpolate, self.tinter)
-                             for s in signals])
+            return np.array(
+                [self.tree.classify(s, self.interpolate, self.tinter) for s in signals]
+            )
         else:
             raise ValueError("Model not fit")
 
@@ -364,28 +390,43 @@ class LLTInf(object):
         else:
             impurity = override_impurity
         primitive, impurity = _find_best_primitive(
-            traces, primitives, rho, impurity, disp,
-            self.optimizer_args, times=self.times, interpolate=self.interpolate,
-            tinter=self.tinter)
+            traces,
+            primitives,
+            rho,
+            impurity,
+            disp,
+            self.optimizer_args,
+            times=self.times,
+            interpolate=self.interpolate,
+            tinter=self.tinter,
+        )
         if disp:
             print("Best: {} ({})".format(primitive, impurity))
 
         # Classify using best primitive and split into groups
-        prim_rho = [robustness(primitive, SimpleModel(s, self.interpolate, self.tinter))
-                    for s in traces.signals]
+        prim_rho = [
+            robustness(primitive, SimpleModel(s, self.interpolate, self.tinter))
+            for s in traces.signals
+        ]
         if rho is None:
             rho = [np.inf for i in traces.labels]
         tree = DTree(primitive, traces, rho)
         # [prim_rho, rho, signals, label]
-        sat_, unsat_ = split_groups(zip(prim_rho, rho, *traces.as_list()),
-            lambda x: x[0] >= 0)
+        sat_, unsat_ = split_groups(
+            zip(prim_rho, rho, *traces.as_list()), lambda x: x[0] >= 0
+        )
 
         pure_wrong = all([t[3] <= 0 for t in sat_]) or all([t[3] >= 0 for t in unsat_])
         pure_right = all([t[3] >= 0 for t in sat_]) or all([t[3] <= 0 for t in unsat_])
         # Switch sat and unsat if labels are wrong. No need to negate prim rho since
         # we use it in absolute value later
-        if pure_wrong or (not pure_right and (len([t for t in sat_ if t[3] >= 0]) <
-                len([t for t in unsat_ if t[3] >= 0]))):
+        if pure_wrong or (
+            not pure_right
+            and (
+                len([t for t in sat_ if t[3] >= 0])
+                < len([t for t in unsat_ if t[3] >= 0])
+            )
+        ):
             sat_, unsat_ = unsat_, sat_
             tree.primitive = Formula(NOT, [tree.primitive])
 
@@ -395,14 +436,20 @@ class LLTInf(object):
             if override_impurity is None:
                 logger.debug("Attempting to classify using impurity fallback")
                 return self._lltinf(
-                    traces, rho, depth, disp=disp, override_impurity=self.fallback_impurity)
+                    traces,
+                    rho,
+                    depth,
+                    disp=disp,
+                    override_impurity=self.fallback_impurity,
+                )
             else:
                 return None
 
         # Redo data structures
-        sat, unsat = [(Traces(*group[2:]),
-                    np.amin([np.abs(group[0]), group[1]], 0))
-                    for group in [zip(*sat_), zip(*unsat_)]]
+        sat, unsat = [
+            (Traces(*group[2:]), np.amin([np.abs(group[0]), group[1]], 0))
+            for group in [zip(*sat_), zip(*unsat_)]
+        ]
 
         # Recursively build the tree
         tree.left = self._lltinf(sat[0], sat[1], depth - 1, disp=disp)
@@ -415,8 +462,8 @@ def perfect_stop(lltinf, traces, rho, depth):
     """
     Returns True if all traces are equally labeled.
     """
-    return all([l > 0 for l in traces.labels]) or \
-        all([l <= 0 for l in traces.labels])
+    return all([l > 0 for l in traces.labels]) or all([l <= 0 for l in traces.labels])
+
 
 def depth_stop(lltinf, traces, rho, depth):
     """
@@ -424,18 +471,35 @@ def depth_stop(lltinf, traces, rho, depth):
     """
     return depth <= 0
 
+
 def _find_best_primitive(
-    traces, primitives, robustness, optimize_impurity, disp, optimizer_args,
-    times, interpolate, tinter):
+    traces,
+    primitives,
+    robustness,
+    optimize_impurity,
+    disp,
+    optimizer_args,
+    times,
+    interpolate,
+    tinter,
+):
     # Parameters will be set for the copy of the primitive
     opt_prims = [
         impurity.optimize_impurity(
-            traces, primitive.copy(), robustness, disp, optimizer_args, times,
-            interpolate, tinter, impurity=optimize_impurity)
-        for primitive in primitives]
+            traces,
+            primitive.copy(),
+            robustness,
+            disp,
+            optimizer_args,
+            times,
+            interpolate,
+            tinter,
+            impurity=optimize_impurity,
+        )
+        for primitive in primitives
+    ]
     if disp:
         for p, imp in opt_prims:
             print("{} ({})".format(p, imp))
 
     return min(opt_prims, key=lambda x: x[1])
-

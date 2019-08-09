@@ -13,10 +13,10 @@ from os import path
 import argparse
 import os
 
-from lltinf.inference import perfect_stop, depth_stop, lltinf, Traces
-from lltinf.llt import llt_parser, SimpleModel
-import lltinf.validate as validate
-from stlmilp.stl import satisfies
+from .inference import perfect_stop, depth_stop, lltinf, Traces
+from ..llt import llt_parser, SimpleModel
+from . import validate
+from ..stl import satisfies
 
 def load_traces(filename):
     """
