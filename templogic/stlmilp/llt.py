@@ -4,6 +4,9 @@ Author: Francisco Penedo (franp@bu.edu)
 
 """
 from . import stl
+from bisect import bisect_right
+import logging
+
 import itertools
 from enum import Enum
 import operator
@@ -11,6 +14,8 @@ from typing import Tuple, Iterable, Callable, Sequence, Union, cast
 
 import numpy as np  # type: ignore
 from pyparsing import Word, alphas, Suppress, nums, Literal, MatchFirst  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 class Relation(Enum):
@@ -56,28 +61,21 @@ class LLTSignal(stl.Signal):
         pi : numeric
 
         """
+        super().__init__(self.labels, self.f)
         self.index = index
         self.op = op
         self.pi = pi
-        self._setup()
 
-    def _setup(self) -> None:
+    def labels(self, t):
         # labels transform a time into a pair [j, t]
-        self.labels = [lambda t: (self._index, t)]
+        return [[self._index, t]]
+
+    def f(self, vs):
         # transform to x_j - pi >= 0
-        self.f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == Relation.LE else 1)
+        return (vs[0] - self._pi) * (-1 if self.op == Relation.LE else 1)
 
     def __deepcopy__(self, memo):
         return LLTSignal(self.index, self.op, self.pi)
-
-    def __getstate__(self):
-        odict = self.__dict__.copy()
-        del odict["_f"]
-        return odict
-
-    def __setstate__(self, dict):
-        self.__dict__.update(dict)
-        self._setup()
 
     def __str__(self) -> str:
         return f"x_{self.index} {self.op} {self.pi:.2f}"
@@ -105,6 +103,84 @@ class LLTSignal(stl.Signal):
     @index.setter
     def index(self, value: int) -> None:
         self._index = value
+
+
+class LLTFormulaD1(stl.STLAnd):
+    signal: LLTSignal
+    outer: stl.TemporalTerm
+
+    def __init__(self, safe: bool, index: int, op: Union[str, Relation]) -> None:
+        """ Creates a depth 1 STL formula.
+
+        safe : boolean
+               True if the formula has a safety structure (always)
+               or not (eventually).
+        index : integer
+                Index for the signal (see LLTSignal)
+        op : either LE or GT
+             Operator for the atomic proposition (see LLTSignal)
+        """
+        self.signal = LLTSignal(index, op)
+        if safe:
+            self.outer = stl.STLAlways((0, 0), stl.STLPred(self.signal))
+        else:
+            self.outer = stl.STLEventually((0, 0), stl.STLPred(self.signal))
+        super().__init__([self.outer])
+
+    @property
+    def index(self) -> int:
+        return self.signal.index
+
+    @property
+    def pi(self) -> float:
+        return self.signal.pi
+
+    @pi.setter
+    def pi(self, value: float) -> None:
+        self.signal.pi = value
+
+    @property
+    def op(self) -> Relation:
+        return self.signal.op
+
+    @op.setter
+    def op(self, value: Union[str, Relation]) -> None:
+        self.signal.op = value  # type: ignore # Incorrectly handling get/set?
+
+    @property
+    def t0(self) -> float:
+        return self.outer.bounds[0]
+
+    @t0.setter
+    def t0(self, value: float) -> None:
+        self.outer.bounds = (value, self.outer.bounds[1])
+
+    @property
+    def t1(self) -> float:
+        return self.outer.bounds[1]
+
+    @t1.setter
+    def t1(self, value: float) -> None:
+        self.outer.bounds = (self.outer.bounds[0], value)
+
+    def reverse_op(self) -> None:
+        """Reverses the operator of the atomic proposition
+        """
+        self.op = self.op.flip()
+
+    def copy(self) -> "LLTFormula":
+        return cast("LLTFormula", super().copy())
+
+    def parameter_bounds(self, maxt: float, minpi: float, maxpi: float) -> Tuple:
+        return [0, 0, minpi], [maxt, maxt, maxpi]
+
+    def set_llt_pars(self, theta: Tuple[float, float, float]) -> None:
+        """ Sets the parameters of a primitive
+        """
+        t0, t1, pi = theta
+        self.t0 = t0
+        self.t1 = t1
+        self.pi = pi
 
 
 class LLTFormula(stl.STLAnd):
@@ -190,16 +266,14 @@ class LLTFormula(stl.STLAnd):
     def parameter_bounds(self, maxt: float, minpi: float, maxpi: float) -> Tuple:
         return [0, 0, minpi], [maxt, maxt, maxpi]
 
-
-def set_llt_pars(
-    primitive: LLTFormula, t0: float, t1: float, t3: float, pi: float
-) -> None:
-    """Sets the parameters of a primitive
-    """
-    primitive.t0 = t0
-    primitive.t1 = t1
-    primitive.t3 = t3
-    primitive.pi = pi
+    def set_llt_pars(self, theta: Tuple[float, float, float, float]) -> None:
+        """Sets the parameters of a primitive
+        """
+        t0, t1, t3, pi = theta
+        self.t0 = t0
+        self.t1 = t1
+        self.t3 = t3
+        self.pi = pi
 
 
 SignalType = Sequence[Sequence[float]]
@@ -217,13 +291,16 @@ class SimpleModel(stl.STLModel):
 
     _signal: SignalType
     _lsignal: int
+    interpolate: bool
 
-    def __init__(self, signal: SignalType) -> None:
+    def __init__(self, signal: SignalType, interpolate=False, tinter=None) -> None:
         self._signal = signal
         try:
-            self.tinter = signal[-1][1] - signal[-1][0]
+            _tinter = signal[-1][1] - signal[-1][0]
         except IndexError:  # only one time
-            self.tinter = 1
+            _tinter = 1
+        self.tinter = tinter or _tinter
+        self.interpolate = interpolate
         self._lsignal = len(signal[-1])
 
     def getVarByName(self, indices: Tuple[int, float]) -> float:
@@ -236,10 +313,32 @@ class SimpleModel(stl.STLModel):
         FIXME: Assumes that sampling rate is constant, i.e. the sampling
         times are in arithmetic progression with rate self._tinter
         """
-        tindex = int(min(np.floor(indices[1] / self.tinter), self._lsignal - 1))
-        # assert 0 <= tindex <= len(self._signals[-1]), \
-        #        'Invalid query outside the time domain of the trace! %f' % tindex
-        return self._signal[indices[0]][tindex]
+        name, time = indices
+        #         tindex = max(min(
+        #             bisect_left(self._signals[-1], indices[1]),
+        #             len(self._signals[-1]) - 1),
+        #             0)
+        if self._lsignal == 1:
+            return self._signal[name][0]
+        elif self.interpolate:
+            times = self._signal[-1]
+            signal = self._signal[name]
+            if time == times[0]:
+                return signal[0]
+            elif time == times[-1]:
+                return signal[-1]
+            else:
+                tindex = bisect_right(times, time) - 1
+                tinter = times[tindex + 1] - times[tindex]
+                lam = (time - times[tindex]) / tinter
+                ret = (1 - lam) * signal[tindex] + lam * signal[tindex + 1]
+                # logger.debug([name, time, tindex, tinter, ret])
+                return ret
+        else:
+            tindex = int(min(np.floor(time / self.tinter), self._lsignal - 1))
+            # assert 0 <= tindex <= len(self._signals[-1]), \
+            #        'Invalid query outside the time domain of the trace! %f' % tindex
+            return self._signal[name][tindex]
 
 
 def make_llt_primitives(signals: Sequence[SignalType]) -> Iterable[LLTFormula]:
@@ -258,6 +357,24 @@ def make_llt_primitives(signals: Sequence[SignalType]) -> Iterable[LLTFormula]:
     ]
 
     return alw_ev + ev_alw
+
+
+def make_llt_d1_primitives(signals: Sequence[SignalType]) -> Iterable[LLTFormulaD1]:
+    """ Obtains the depth 1 primitives associated with the structure of the signals.
+
+    signals : m by n matrix
+              Last column should be the sampling times
+    """
+    prims = [
+        LLTFormulaD1(safe, index, op)
+        for safe in [True, False]
+        for index, op in itertools.product(range(len(signals[0]) - 1), [Relation.LE])
+    ]
+
+    return prims
+
+
+# parser
 
 
 def expr_parser():
