@@ -14,7 +14,7 @@ from bisect import bisect_right
 import numpy as np  # type: ignore
 import scipy.optimize as opt  # type: ignore
 
-from ..llt import SimpleModel, set_llt_pars
+from ..llt import SimpleModel
 from ..stl import robustness
 from templogic.util import split_groups
 
@@ -145,7 +145,7 @@ def inf_gain(theta, *args):
     #     print 'bad'
     #     return np.inf
 
-    set_llt_pars(primitive, *theta)
+    primitive.set_llt_pars(theta)
 
     rho = [robustness(primitive, model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
@@ -215,7 +215,7 @@ def ext_inf_gain(theta, *args):
     #     print 'bad'
     #     return np.inf
 
-    set_llt_pars(primitive, *theta)
+    primitive.set_llt_pars(theta)
 
     rho = [robustness(primitive, model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]

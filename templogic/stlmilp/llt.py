@@ -61,16 +61,16 @@ class LLTSignal(stl.Signal):
         pi : numeric
 
         """
-        super().__init__(self.labels, self.f)
+        super().__init__(self._labels, self._f)
         self.index = index
         self.op = op
         self.pi = pi
 
-    def labels(self, t):
+    def _labels(self, t):
         # labels transform a time into a pair [j, t]
         return [[self._index, t]]
 
-    def f(self, vs):
+    def _f(self, vs):
         # transform to x_j - pi >= 0
         return (vs[0] - self._pi) * (-1 if self.op == Relation.LE else 1)
 
@@ -264,7 +264,7 @@ class LLTFormula(stl.STLAnd):
         return cast("LLTFormula", super().copy())
 
     def parameter_bounds(self, maxt: float, minpi: float, maxpi: float) -> Tuple:
-        return [0, 0, minpi], [maxt, maxt, maxpi]
+        return [0, 0, 0, minpi], [maxt, maxt, maxt, maxpi]
 
     def set_llt_pars(self, theta: Tuple[float, float, float, float]) -> None:
         """Sets the parameters of a primitive

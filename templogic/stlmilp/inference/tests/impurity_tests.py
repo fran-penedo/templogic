@@ -121,4 +121,4 @@ class TestSTL(unittest.TestCase):
         for p, imp in opts:
             print("{} ({})".format(p, imp))
 
-        self.assertAlmostEqual(min(zip(*opts)[1]), -0.6364488070531602, places=3)
+        self.assertAlmostEqual(min(list(zip(*opts))[1]), -0.6364488070531602, places=3)

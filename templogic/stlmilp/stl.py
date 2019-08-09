@@ -107,7 +107,7 @@ class Signal(Generic[U]):
     def labels(self, value: Labels) -> None:
         self._labels = value
         try:
-            if iter(self.labels):  # type: ignore
+            if iter(self._labels):  # type: ignore
                 self.labels_at_t = self._label_list
         except TypeError:
             self.labels_at_t = self._label_fun
