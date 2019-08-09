@@ -3,15 +3,15 @@ from __future__ import division, absolute_import, print_function
 import logging
 import unittest
 
-import numpy as np
-import numpy.testing as npt
+import numpy as np  # type: ignore
+import numpy.testing as npt  # type: ignore
 
 from .. import inference, impurity
 from ... import llt
 
 
 class TestSTL(unittest.TestCase):
-    def test_ext_inf_gain(self):
+    def test_ext_inf_gain(self) -> None:
         traces = inference.Traces(
             [
                 [[1, 2, 3, 4], [1, 2, 3, 3.0], [1, 2, 3, 4]],
@@ -22,8 +22,8 @@ class TestSTL(unittest.TestCase):
             [1, 1, -1, -1],
         )
         models = [llt.SimpleModel(signal) for signal in traces.signals]
-        primitive_good = llt.LLTFormula(True, 1, llt.LE)
-        primitive_bad = llt.LLTFormula(True, 0, llt.LE)
+        primitive_good = llt.LLTFormula(True, 1, "<")
+        primitive_bad = llt.LLTFormula(True, 0, "<")
         rho = None
         maxt = 4
 
@@ -54,8 +54,8 @@ class TestSTL(unittest.TestCase):
             [1, 1, -1, -1],
         )
         models = [llt.SimpleModel(signal) for signal in traces.signals]
-        primitive_good = llt.LLTFormula(True, 1, llt.LE)
-        primitive_bad = llt.LLTFormula(True, 0, llt.LE)
+        primitive_good = llt.LLTFormula(True, 1, "<")
+        primitive_bad = llt.LLTFormula(True, 0, "<")
         rho = None
         maxt = 4
 
@@ -85,8 +85,8 @@ class TestSTL(unittest.TestCase):
             [1, -1, -1],
         )
         models = [llt.SimpleModel(signal) for signal in traces.signals]
-        primitive_good = llt.LLTFormula(True, 0, llt.LE)
-        primitive_bad = llt.LLTFormula(True, 1, llt.LE)
+        primitive_good = llt.LLTFormula(True, 0, "<")
+        primitive_bad = llt.LLTFormula(True, 1, "<")
         rho = np.array([1.0000000e00, 3.3345704e-09, 1.0000000e00])
         maxt = 0
 

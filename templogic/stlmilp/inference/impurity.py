@@ -1,5 +1,4 @@
-"""
-Impurity measure definition and optimization module.
+""" Impurity measure definition and optimization module.
 
 Currently defines information gain.
 
@@ -12,11 +11,12 @@ import math
 import logging
 from bisect import bisect_right
 
-import numpy as np
-import scipy.optimize as opt
+import numpy as np  # type: ignore
+import scipy.optimize as opt  # type: ignore
 
-from ..llt import SimpleModel, split_groups
+from ..llt import SimpleModel, set_llt_pars
 from ..stl import robustness
+from templogic.util import split_groups
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,7 @@ def optimize_impurity(
     tinter=None,
     impurity=None,
 ):
-    """
-    Optimizes the impurity function given for the given labeled traces.
+    """ Optimizes the impurity function given for the given labeled traces.
 
     """
     optimizer_args_def = {
@@ -68,7 +67,7 @@ def optimize_impurity(
         optimizer_args_def["workers"] = 1
     res = opt.differential_evolution(
         impurity,
-        bounds=zip(lower, upper),
+        bounds=list(zip(lower, upper)),
         args=(args,),
         disp=disp,
         **optimizer_args_def
@@ -122,8 +121,7 @@ def _round_t(t, times):
 
 
 def inf_gain(theta, *args):
-    """
-    Obtains the negative of information gain of the sample theta.
+    """ Obtains the negative of information gain of the sample theta.
 
     The extra fixed arguments are defined as:
         args = [primitive, models, prev_rho, traces, maxt]
@@ -147,7 +145,7 @@ def inf_gain(theta, *args):
     #     print 'bad'
     #     return np.inf
 
-    primitive.set_llt_pars(theta)
+    set_llt_pars(primitive, *theta)
 
     rho = [robustness(primitive, model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
@@ -159,7 +157,7 @@ def inf_gain(theta, *args):
 
     if prev_rho is not None:
         lrho.append(prev_rho)
-    rho_labels = zip(np.amin(lrho, 0), traces.labels)
+    rho_labels = list(zip(np.amin(lrho, 0), traces.labels))
     sat, unsat = split_groups(rho_labels, lambda x: x[0] >= 0)
 
     # # compute IG
@@ -193,8 +191,7 @@ def _entropy(part):
 
 
 def ext_inf_gain(theta, *args):
-    """
-    Obtains the negative of extended information gain of the sample theta.
+    """ Obtains the negative of extended information gain of the sample theta.
 
     The extra fixed arguments are defined as:
         args = [primitive, models, prev_rho, traces, maxt]
@@ -218,7 +215,7 @@ def ext_inf_gain(theta, *args):
     #     print 'bad'
     #     return np.inf
 
-    primitive.set_llt_pars(theta)
+    set_llt_pars(primitive, *theta)
 
     rho = [robustness(primitive, model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
@@ -230,12 +227,12 @@ def ext_inf_gain(theta, *args):
 
     if prev_rho is not None:
         lrho.append(prev_rho)
-    rho_labels = zip(np.amin(lrho, 0), traces.labels)
+    rho_labels = list(zip(np.amin(lrho, 0), traces.labels))
     sat, unsat = split_groups(rho_labels, lambda x: x[0] >= 0)
 
     # compute IG
     # Sum of absolute value of the robustness for all traces
-    stotal = sum(np.abs(zip(*rho_labels)[0]))
+    stotal = sum(np.abs(list(zip(*rho_labels))[0]))
     # FIXME should probably take into account the domain of the signals
     if np.isclose(0.0, stotal, atol=1e-5):
         ig = 0.0
@@ -252,14 +249,14 @@ def ext_inf_gain(theta, *args):
 def _ext_inweights(part, stotal):
     if len(part) == 0:
         return 0
-    return sum(np.abs(zip(*part)[0])) / stotal
+    return sum(np.abs(list(zip(*part))[0])) / stotal
 
 
 def _ext_entropy(part):
     if len(part) == 0:
         return 0
 
-    spart = float(sum(np.abs(zip(*part)[0])))
+    spart = float(sum(np.abs(list(zip(*part))[0])))
     # Revert to counting when all rho = 0
     if spart == 0:
         w_p = len([p for p in part if p[1] >= 0]) / float(len(part))

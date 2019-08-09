@@ -7,14 +7,14 @@ Author: Francisco Penedo (franp@bu.edu)
 
 """
 import logging
-import multiprocess
+from multiprocessing.pool import Pool
 import signal
 
-import numpy as np
+import numpy as np  # type: ignore
 
-from ..stl import Formula, AND, OR, NOT, satisfies, robustness
+from .. import stl, llt
 from . import impurity
-from ..llt import make_llt_primitives, split_groups, SimpleModel
+from templogic.util import split_groups
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class DTree(object):
         signal : an m by n matrix
                  Last row should be the sampling times
         """
-        if satisfies(self.primitive, SimpleModel(signal, interpolate, tinter)):
+        if stl.satisfies(self.primitive, llt.SimpleModel(signal, interpolate, tinter)):
             if self.left is None:
                 return 1
             else:
@@ -148,11 +148,11 @@ class DTree(object):
         Obtains an STL formula equivalent to this tree
         """
         left = self.primitive
-        right = Formula(NOT, [self.primitive])
+        right = stl.STLNot(self.primitive)
         if self.left is not None:
-            left = Formula(AND, [self.primitive, self.left.get_formula()])
+            left = stl.STLAnd([self.primitive, self.left.get_formula()])
         if self.right is not None:
-            return Formula(OR, [left, Formula(AND, [right, self.right.get_formula()])])
+            return stl.STLOr([left, stl.STLAnd([right, self.right.get_formula()])])
         else:
             return left
 
@@ -162,7 +162,9 @@ class DTree(object):
     def _add_signal(self, signal, label, rho, interpolate=False, tinter=None):
         self.traces.add_traces([signal], [label])
         self.robustness = np.r_[self.robustness, rho]
-        prim_rho = robustness(self.primitive, SimpleModel(signal, interpolate, tinter))
+        prim_rho = stl.robustness(
+            self.primitive, llt.SimpleModel(signal, interpolate, tinter)
+        )
         rho = np.amin([np.abs(prim_rho), rho])
         if prim_rho >= 0:
             if self.left is not None:
@@ -258,7 +260,7 @@ class LLTInf(object):
     def __init__(
         self,
         depth=1,
-        primitive_factory=make_llt_primitives,
+        primitive_factory=llt.make_llt_primitives,
         optimize_impurity=impurity.ext_inf_gain,
         stop_condition=None,
         redo_after_failed=1,
@@ -287,7 +289,7 @@ class LLTInf(object):
         self.redo_after_failed = redo_after_failed
         self._partial_add = 0
         if "workers" not in self.optimizer_args:
-            self.pool = multiprocess.Pool(initializer=_pool_initializer)
+            self.pool = Pool(initializer=_pool_initializer)
 
             def pool_map(func, iterable):
                 try:
@@ -405,7 +407,7 @@ class LLTInf(object):
 
         # Classify using best primitive and split into groups
         prim_rho = [
-            robustness(primitive, SimpleModel(s, self.interpolate, self.tinter))
+            stl.robustness(primitive, llt.SimpleModel(s, self.interpolate, self.tinter))
             for s in traces.signals
         ]
         if rho is None:
@@ -428,7 +430,7 @@ class LLTInf(object):
             )
         ):
             sat_, unsat_ = unsat_, sat_
-            tree.primitive = Formula(NOT, [tree.primitive])
+            tree.primitive = stl.STLNot(tree.primitive)
 
         # No further classification possible
         if len(sat_) == 0 or len(unsat_) == 0:

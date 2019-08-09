@@ -43,7 +43,6 @@ class LLTSignal(stl.Signal):
     _index: int
     _op: Relation
     _pi: float
-    _labels: Sequence[Callable[[float], Tuple[int, float]]]
 
     def __init__(
         self, index: int = 0, op: Union[str, Relation] = "<", pi: float = 0
@@ -64,16 +63,15 @@ class LLTSignal(stl.Signal):
 
     def _setup(self) -> None:
         # labels transform a time into a pair [j, t]
-        self._labels = [lambda t: (self._index, t)]
+        self.labels = [lambda t: (self._index, t)]
         # transform to x_j - pi >= 0
-        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == Relation.LE else 1)
+        self.f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == Relation.LE else 1)
 
     def __deepcopy__(self, memo):
         return LLTSignal(self.index, self.op, self.pi)
 
     def __getstate__(self):
         odict = self.__dict__.copy()
-        del odict["_labels"]
         del odict["_f"]
         return odict
 
@@ -189,6 +187,9 @@ class LLTFormula(stl.STLAnd):
     def copy(self) -> "LLTFormula":
         return cast("LLTFormula", super().copy())
 
+    def parameter_bounds(self, maxt: float, minpi: float, maxpi: float) -> Tuple:
+        return [0, 0, minpi], [maxt, maxt, maxpi]
+
 
 def set_llt_pars(
     primitive: LLTFormula, t0: float, t1: float, t3: float, pi: float
@@ -219,7 +220,10 @@ class SimpleModel(stl.STLModel):
 
     def __init__(self, signal: SignalType) -> None:
         self._signal = signal
-        self.tinter = signal[-1][1] - signal[-1][0]
+        try:
+            self.tinter = signal[-1][1] - signal[-1][0]
+        except IndexError:  # only one time
+            self.tinter = 1
         self._lsignal = len(signal[-1])
 
     def getVarByName(self, indices: Tuple[int, float]) -> float:
@@ -232,7 +236,7 @@ class SimpleModel(stl.STLModel):
         FIXME: Assumes that sampling rate is constant, i.e. the sampling
         times are in arithmetic progression with rate self._tinter
         """
-        tindex = min(np.floor(indices[1] / self.tinter), self._lsignal - 1)
+        tindex = int(min(np.floor(indices[1] / self.tinter), self._lsignal - 1))
         # assert 0 <= tindex <= len(self._signals[-1]), \
         #        'Invalid query outside the time domain of the trace! %f' % tindex
         return self._signal[indices[0]][tindex]
