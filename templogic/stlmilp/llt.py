@@ -1,94 +1,124 @@
-"""
-Module with depth 2 p-stl definitions
+"""Module with depth 2 p-stl definitions
 
 Author: Francisco Penedo (franp@bu.edu)
 
 """
-import .stl
-from .stl import Signal, Formula, LE, GT, ALWAYS, EVENTUALLY, EXPR
+from . import stl
 import itertools
-# from bisect import bisect_left
-import numpy as np
-from pyparsing import Word, alphas, Suppress, Optional, Combine, nums, \
-    Literal, alphanums, Keyword, Group, ParseFatalException, MatchFirst
+from enum import Enum
+import operator
+from typing import Tuple, Iterable, Callable, Sequence, Union, cast
+
+import numpy as np  # type: ignore
+from pyparsing import Word, alphas, Suppress, nums, Literal, MatchFirst  # type: ignore
 
 
-class LLTSignal(Signal):
+class Relation(Enum):
+    LE = operator.le
+    GT = operator.ge
+
+    @classmethod
+    def from_str(cls, s: str) -> "Relation":
+        if s == "<" or s == "<=":
+            return cls.LE
+        elif s == ">" or s == ">=":
+            return cls.GT
+        else:
+            raise ValueError(f"String '{s}' cannot be converted to a relation")
+
+    def flip(self) -> "Relation":
+        if self == Relation.LE:
+            return Relation.GT
+        else:
+            return Relation.LE
+
+    def __str__(self):
+        return "<=" if self == Relation.LE else ">"
+
+
+class LLTSignal(stl.Signal):
+    """Definition of an atomic proposition in LLT: x_j ~ pi, where ~ is <= or >
     """
-    Definition of an atomic proposition in LLT: x_j ~ pi, where ~ is <= or >
-    """
 
-    def __init__(self, index=0, op=LE, pi=0):
-        """
-        Creates a signal x_j ~ pi.
+    _index: int
+    _op: Relation
+    _pi: float
+    _labels: Sequence[Callable[[float], Tuple[int, float]]]
+
+    def __init__(
+        self, index: int = 0, op: Union[str, Relation] = "<", pi: float = 0
+    ) -> None:
+        """Creates a signal x_j ~ pi.
 
         index : integer
                 Corresponds to j.
-        op : either LE or GT
+        op : either "<" or ">"
              Corresponds to op.
         pi : numeric
 
         """
-        self._index = index
-        self._op = op
-        self._pi = pi
+        self.index = index
+        self.op = op
+        self.pi = pi
+        self._setup()
 
+    def _setup(self) -> None:
         # labels transform a time into a pair [j, t]
-        self._labels = [lambda t: [self._index, t]]
+        self._labels = [lambda t: (self._index, t)]
         # transform to x_j - pi >= 0
-        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
+        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == Relation.LE else 1)
 
     def __deepcopy__(self, memo):
         return LLTSignal(self.index, self.op, self.pi)
 
     def __getstate__(self):
         odict = self.__dict__.copy()
-        del odict['_labels']
-        del odict['_f']
+        del odict["_labels"]
+        del odict["_f"]
         return odict
 
     def __setstate__(self, dict):
         self.__dict__.update(dict)
-        self._labels = [lambda t: [self._index, t]]
-        self._f = lambda vs: (vs[0] - self._pi) * (-1 if self._op == LE else 1)
+        self._setup()
 
-    def __str__(self):
-        return "x_%d %s %.2f" % (self.index,
-                                 "<=" if self.op == LE else ">", self.pi)
+    def __str__(self) -> str:
+        return f"x_{self.index} {self.op} {self.pi:.2f}"
 
     @property
-    def pi(self):
+    def pi(self) -> float:
         return self._pi
 
     @pi.setter
-    def pi(self, value):
+    def pi(self, value: float) -> None:
         self._pi = value
 
     @property
-    def op(self):
+    def op(self) -> Relation:
         return self._op
 
     @op.setter
-    def op(self, value):
-        self._op = value
+    def op(self, value: Union[Relation, str]) -> None:
+        self._op = Relation.from_str(value) if isinstance(value, str) else value
 
     @property
-    def index(self):
+    def index(self) -> int:
         return self._index
 
     @index.setter
-    def index(self, value):
+    def index(self, value: int) -> None:
         self._index = value
 
 
-class LLTFormula(Formula):
-    """
-    A depth 2 STL formula.
+class LLTFormula(stl.STLAnd):
+    """A depth 2 STL formula.
     """
 
-    def __init__(self, live, index, op):
-        """
-        Creates a depth 2 STL formula.
+    signal: LLTSignal
+    inner: stl.TemporalTerm
+    outer: stl.TemporalTerm
+
+    def __init__(self, live: bool, index: int, op: Union[str, Relation]) -> None:
+        """Creates a depth 2 STL formula.
 
         live : boolean
                True if the formula has a liveness structure (always eventually)
@@ -98,70 +128,72 @@ class LLTFormula(Formula):
         op : either LE or GT
              Operator for the atomic proposition (see LLTSignal)
         """
+        self.signal = LLTSignal(index, op)
         if live:
-            Formula.__init__(self, ALWAYS, [
-                Formula(EVENTUALLY, [
-                    Formula(EXPR, [
-                        LLTSignal(index, op)
-                    ])
-                ])
-            ])
+            self.inner = stl.STLEventually((0, 0), stl.STLPred(self.signal))
+            self.outer = stl.STLAlways((0, 0), self.inner)
         else:
-            Formula.__init__(self, EVENTUALLY, [
-                Formula(ALWAYS, [
-                    Formula(EXPR, [
-                        LLTSignal(index, op)
-                    ])
-                ])
-            ])
+            self.inner = stl.STLAlways((0, 0), stl.STLPred(self.signal))
+            self.outer = stl.STLEventually((0, 0), self.inner)
+        super().__init__([self.outer])
 
     @property
-    def index(self):
-        return self.args[0].args[0].args[0].index
+    def index(self) -> int:
+        return self.signal.index
 
     @property
-    def pi(self):
-        return self.args[0].args[0].args[0].pi
+    def pi(self) -> float:
+        return self.signal.pi
 
     @pi.setter
-    def pi(self, value):
-        self.args[0].args[0].args[0].pi = value
+    def pi(self, value: float) -> None:
+        self.signal.pi = value
 
     @property
-    def t0(self):
-        return self.bounds[0]
+    def op(self) -> Relation:
+        return self.signal.op
+
+    @op.setter
+    def op(self, value: Union[str, Relation]) -> None:
+        self.signal.op = value  # type: ignore # Incorrectly handling get/set?
+
+    @property
+    def t0(self) -> float:
+        return self.outer.bounds[0]
 
     @t0.setter
-    def t0(self, value):
-        self.bounds[0] = value
+    def t0(self, value: float) -> None:
+        self.outer.bounds = (value, self.outer.bounds[1])
 
     @property
-    def t1(self):
-        return self.bounds[1]
+    def t1(self) -> float:
+        return self.outer.bounds[1]
 
     @t1.setter
-    def t1(self, value):
-        self.bounds[1] = value
+    def t1(self, value: float) -> None:
+        self.outer.bounds = (self.outer.bounds[0], value)
 
     @property
-    def t3(self):
-        return self.args[0].bounds[1]
+    def t3(self) -> float:
+        return self.inner.bounds[1]
 
     @t3.setter
-    def t3(self, value):
-        self.args[0].bounds[1] = value
+    def t3(self, value: float) -> None:
+        self.inner.bounds = (self.inner.bounds[0], value)
 
-    def reverse_op(self):
+    def reverse_op(self) -> None:
+        """Reverses the operator of the atomic proposition
         """
-        Reverses the operator of the atomic proposition
-        """
-        op = self.args[0].args[0].args[0].op
-        self.args[0].args[0].args[0].op = LE if op == GT else GT
+        self.op = self.op.flip()
+
+    def copy(self) -> "LLTFormula":
+        return cast("LLTFormula", super().copy())
 
 
-def set_llt_pars(primitive, t0, t1, t3, pi):
-    """
-    Sets the parameters of a primitive
+def set_llt_pars(
+    primitive: LLTFormula, t0: float, t1: float, t3: float, pi: float
+) -> None:
+    """Sets the parameters of a primitive
     """
     primitive.t0 = t0
     primitive.t1 = t1
@@ -169,78 +201,60 @@ def set_llt_pars(primitive, t0, t1, t3, pi):
     primitive.pi = pi
 
 
-class SimpleModel(object):
-    """
-    Matrix-like model with fixed sample interval. Suitable for use with
-    LLTFormula
+SignalType = Sequence[Sequence[float]]
+
+
+class SimpleModel(stl.STLModel):
+    """Matrix-like model with fixed sample interval.
+
+    Parameters
+    ----------
+    signal : m by n matrix.
+        Last row should be the sampling times.
+
     """
 
-    def __init__(self, signals):
-        """
-        signals : m by n matrix.
-                  Last row should be the sampling times.
-        """
-        self._signals = signals
-        self._tinter = signals[-1][1] - signals[-1][0]
-        self._lsignals = len(signals[-1])
+    _signal: SignalType
+    _lsignal: int
 
-    def getVarByName(self, indices):
-        """
+    def __init__(self, signal: SignalType) -> None:
+        self._signal = signal
+        self.tinter = signal[-1][1] - signal[-1][0]
+        self._lsignal = len(signal[-1])
+
+    def getVarByName(self, indices: Tuple[int, float]) -> float:
+        """ Get variables
+
         indices : pair of numerics
                   indices[0] represents the name of the signal
                   indices[1] represents the time at which to sample the signal
+
+        FIXME: Assumes that sampling rate is constant, i.e. the sampling
+        times are in arithmetic progression with rate self._tinter
         """
-#         tindex = max(min(
-#             bisect_left(self._signals[-1], indices[1]),
-#             len(self._signals[-1]) - 1),
-#             0)
-        '''FIXME: Assumes that sampling rate is constant, i.e. the sampling
-        times are in arithmetic progression with rate self._tinter'''
-        tindex = min(
-            np.floor(indices[1]/self._tinter), self._lsignals - 1)
+        tindex = min(np.floor(indices[1] / self.tinter), self._lsignal - 1)
         # assert 0 <= tindex <= len(self._signals[-1]), \
         #        'Invalid query outside the time domain of the trace! %f' % tindex
-        return self._signals[indices[0]][tindex]
-
-    @property
-    def tinter(self):
-        return self._tinter
+        return self._signal[indices[0]][tindex]
 
 
-def make_llt_primitives(signals):
-    """
-    Obtains the depth 2 primitives associated with the structure of the signals.
+def make_llt_primitives(signals: Sequence[SignalType]) -> Iterable[LLTFormula]:
+    """Obtains the depth 2 primitives associated with the structure of the signals.
 
     signals : m by n matrix
               Last column should be the sampling times
     """
     alw_ev = [
         LLTFormula(True, index, op)
-        for index, op
-        in itertools.product(range(len(signals[0]) - 1), [LE])
+        for index, op in itertools.product(range(len(signals[0]) - 1), [Relation.LE])
     ]
     ev_alw = [
         LLTFormula(False, index, op)
-        for index, op
-        in itertools.product(range(len(signals[0]) - 1), [LE])
+        for index, op in itertools.product(range(len(signals[0]) - 1), [Relation.LE])
     ]
 
     return alw_ev + ev_alw
 
-def split_groups(l, group):
-    """
-    Splits a list according to a binary grouping function. Returns the positive
-    group first
-
-    l : a list
-    group : a function from elements of l to boolean
-    """
-    p = [x for x in l if group(x)]
-    n = [x for x in l if not group(x)]
-    return p, n
-
-
-# parser
 
 def expr_parser():
     num = stl.num_parser()
@@ -250,15 +264,17 @@ def expr_parser():
     T_GR = Literal(">")
 
     integer = Word(nums).setParseAction(lambda t: int(t[0]))
-    relation = (T_LE | T_GR).setParseAction(lambda t: LE if t[0] == "<=" else GT)
+    relation = (T_LE | T_GR).setParseAction(
+        lambda t: Relation.LE if t[0] == "<=" else Relation.GT
+    )
     expr = Suppress(Word(alphas)) + T_UND + integer + relation + num
     expr.setParseAction(lambda t: LLTSignal(t[0], t[1], t[2]))
 
     return expr
 
+
 def llt_parser():
-    """
-    Creates a parser for STL over atomic expressions of the type x_i ~ pi.
+    """Creates a parser for STL over atomic expressions of the type x_i ~ pi.
 
     Note that it is not restricted to depth-2 formulas.
     """

@@ -1,29 +1,34 @@
 from __future__ import division, absolute_import, print_function
 
-import logging
 import unittest
 import pprint
 
-import numpy as np
-import numpy.testing as npt
+import numpy as np  # type: ignore
+import numpy.testing as npt  # type: ignore
 
-from lltinf import llt
+import logging
+
+logger = logging.getLogger(__name__)
+
+from .. import llt
+
 
 class TestLLT(unittest.TestCase):
-
-    def test_primitives(self):
+    def test_primitives(self) -> None:
         signals = [
-            [[1,2,3,4], [1,2,3,4], [1,2,3,4]],
-            [[1,2,3,4], [1,2,3,5], [1,2,3,4]]
+            [[1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]],
+            [[1, 2, 3, 4], [1, 2, 3, 5], [1, 2, 3, 4]],
         ]
-        prims = llt.make_llt_primitives(signals)
-        prims[0].set_llt_pars([1, 2, 3, 4])
-        pprint.pprint(prims)
-        pprint.pprint(prims[0].copy())
-
-    def test_split_groups(self):
-        x = [1,-1,2,-2]
-        p, n = llt.split_groups(x, lambda t: t >= 0)
-        np.testing.assert_array_equal(p, [1, 2])
-        np.testing.assert_array_equal(n, [-1, -2])
-
+        prims = list(llt.make_llt_primitives(signals))
+        self.assertEqual(len(prims), 4)
+        prim = prims[0]
+        llt.set_llt_pars(prim, 1, 2, 3, 4)
+        self.assertEqual(prim.t0, 1)
+        self.assertEqual(prim.t1, 2)
+        self.assertEqual(prim.t3, 3)
+        self.assertEqual(prim.pi, 4)
+        prim = prim.copy()
+        self.assertEqual(prim.t0, 1)
+        self.assertEqual(prim.t1, 2)
+        self.assertEqual(prim.t3, 3)
+        self.assertEqual(prim.pi, 4)

@@ -93,3 +93,16 @@ def _tree_pprint(tree: Tree, tab: int = 0) -> str:
         return pad + "None\n"
     children = [_tree_pprint(child, tab + 1) for child in tree.children]
     return "{}{}\n{}".format(pad, str(tree), "".join(children))
+
+
+def split_groups(l, group):
+    """ Splits a list according to a binary grouping function.
+
+    Returns the positive group first
+
+    l : a list
+    group : a function from elements of l to boolean
+    """
+    p = [x for x in l if group(x)]
+    n = [x for x in l if not group(x)]
+    return p, n
