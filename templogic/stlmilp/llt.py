@@ -10,7 +10,7 @@ import logging
 import itertools
 from enum import Enum
 import operator
-from typing import Tuple, Iterable, Callable, Sequence, Union, cast
+from typing import Iterable, Sequence, Tuple, Union, cast
 
 import numpy as np  # type: ignore
 from pyparsing import Word, alphas, Suppress, nums, Literal, MatchFirst  # type: ignore
@@ -63,7 +63,7 @@ class LLTSignal(stl.Signal):
         """
         super().__init__(self._labels, self._f)
         self.index = index
-        self.op = op
+        self.op = op  # type: ignore # mypy is getting confused with setter
         self.pi = pi
 
     def _labels(self, t):

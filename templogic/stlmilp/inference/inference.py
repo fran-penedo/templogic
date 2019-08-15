@@ -403,7 +403,7 @@ class LLTInf(object):
         tree = DTree(primitive, traces, rho)
         # [prim_rho, rho, signals, label]
         sat_, unsat_ = split_groups(
-            zip(prim_rho, rho, *traces.as_list()), lambda x: x[0] >= 0
+            list(zip(prim_rho, rho, *traces.as_list())), lambda x: x[0] >= 0
         )
 
         pure_wrong = all([t[3] <= 0 for t in sat_]) or all([t[3] >= 0 for t in unsat_])
@@ -438,7 +438,7 @@ class LLTInf(object):
         # Redo data structures
         sat, unsat = [
             (Traces(*group[2:]), np.amin([np.abs(group[0]), group[1]], 0))
-            for group in [zip(*sat_), zip(*unsat_)]
+            for group in [list(zip(*sat_)), list(zip(*unsat_))]
         ]
 
         # Recursively build the tree

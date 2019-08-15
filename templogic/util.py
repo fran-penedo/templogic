@@ -1,5 +1,5 @@
 import logging
-from typing import Sequence, TypeVar, Generic, Optional, List, Callable
+from typing import Callable, Generic, Iterable, List, Optional, Sequence, TypeVar
 
 
 logger = logging.getLogger(__name__)
@@ -17,9 +17,9 @@ class Tree(Generic[T, U]):
     _children: List[U]
     parent: Optional[U]
 
-    def __init__(self, data: T, children: Sequence[U]) -> None:
+    def __init__(self, data: T, children: Iterable[U]) -> None:
         self.data = data
-        self.children = children
+        self.children = list(children)
         self.parent = None
 
     def get_child(self, idx: int) -> U:
