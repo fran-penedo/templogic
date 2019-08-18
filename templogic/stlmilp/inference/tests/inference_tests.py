@@ -29,7 +29,9 @@ class TestInference(unittest.TestCase):
         lltinf = inference.LLTInf()
         lltinf.fit(traces)
 
-        print(lltinf.tree)
+        correct_cut = 4.5
+        f = cast(llt.LLTFormula, lltinf.get_formula())
+        self.assertAlmostEqual(f.pi, correct_cut, places=4)
 
     def test_lltinf_5_signals(self):
         lltinf = inference.LLTInf()
