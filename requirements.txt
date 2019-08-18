@@ -1,3 +1,14 @@
 -e .[inference]
+
+# tests
 nose
+coverage
+
+#linting
+flake8
 typing-extensions
+
+#refactoring
+importmagic
+epc
+
