@@ -9,7 +9,7 @@ config = {
     "install_requires": ["numpy>=1.16.4", "pyparsing>=2.1.0"],
     "extras_require": {
         "milp": ["gurobipy>=7.0.1"],
-        "inference": ["python-weka-wrapper3>=0.1.7"],
+        "inference": ["python-weka-wrapper3>=0.1.7", "scipy>=1.3.1"],
     },
     "packages": find_packages(),
     "scripts": [],

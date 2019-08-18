@@ -56,7 +56,7 @@ class STLModel(ABC, Generic[T, U]):
 Labels = Union[Callable[[float], Iterable[T]], Iterable[Callable[[float], T]]]
 
 
-class Signal(Generic[U]):
+class Signal(Generic[U, T]):
     """Class for an observed signal.
 
     `U` is the type of a variable at a single time for the associated model
@@ -76,8 +76,8 @@ class Signal(Generic[U]):
 
     """
 
-    labels: Labels
     bounds: Tuple[float, float]
+    labels_at_t: Callable[["Signal[U, T]", float], Iterable[T]]
 
     def __init__(
         self,
@@ -107,10 +107,10 @@ class Signal(Generic[U]):
     def labels(self, value: Labels) -> None:
         self._labels = value
         try:
-            if iter(self.labels):  # type: ignore
-                self.labels_at_t = self._label_list
+            if iter(self._labels):  # type: ignore
+                setattr(self, "labels_at_t", self._label_list)
         except TypeError:
-            self.labels_at_t = self._label_fun
+            setattr(self, "labels_at_t", self._label_fun)
 
     def _label_fun(self, t: float) -> Iterable[T]:
         return self.labels(t)  # type: ignore
@@ -121,7 +121,7 @@ class Signal(Generic[U]):
     def _get_vs(self, model: STLModel[T, U], t: float) -> Sequence[U]:
         return [model.getVarByName(l) for l in self.labels_at_t(t)]
 
-    def perturb(self, eps: Callable[["Signal[U]"], U]) -> "Signal[U]":
+    def perturb(self, eps: Callable[["Signal[U, T]"], U]) -> "Signal[U, T]":
         return self
 
     def signal(self, model: STLModel[T, U], t: float) -> float:
@@ -233,7 +233,7 @@ class STLPred(ConjTerm, STLTerm):
         self.signal = arg
 
     def __str__(self) -> str:
-        return "(EXP)"
+        return f"({self.signal})"
 
 
 class STLNot(ConjTerm, BooleanTerm, STLTerm):
@@ -330,7 +330,7 @@ def is_negation_form(f: STLTerm) -> bool:
     return f.fold(_neg_form)
 
 
-def perturb(f: STLTerm, eps: Callable[["Signal[U]"], U]) -> STLTerm:
+def perturb(f: STLTerm, eps: Callable[["Signal[U, T]"], U]) -> STLTerm:
     if not is_negation_form(f):
         raise Exception("Formula not in negation form")
 
@@ -445,7 +445,7 @@ def stl_parser(expr=None, float_bounds=True):
 
     where num is a floating point number
 
-    expr : a parser, optional, defaults to r'\w+'
+    expr : a parser, optional, defaults to r'\\w+'
            An expression parser.
     """
     if not expr:

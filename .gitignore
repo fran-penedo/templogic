@@ -13,3 +13,5 @@ out_vars.txt
 temp_plots/
 doc/source/femformal/stubs
 doc/build
+out.profile
+*.pdf

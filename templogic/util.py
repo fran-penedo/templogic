@@ -1,5 +1,5 @@
 import logging
-from typing import Sequence, TypeVar, Generic, Optional, List, Callable
+from typing import Callable, Generic, Iterable, List, Optional, Sequence, TypeVar
 
 
 logger = logging.getLogger(__name__)
@@ -17,9 +17,9 @@ class Tree(Generic[T, U]):
     _children: List[U]
     parent: Optional[U]
 
-    def __init__(self, data: T, children: Sequence[U]) -> None:
+    def __init__(self, data: T, children: Iterable[U]) -> None:
         self.data = data
-        self.children = children
+        self.children = list(children)
         self.parent = None
 
     def get_child(self, idx: int) -> U:
@@ -93,3 +93,16 @@ def _tree_pprint(tree: Tree, tab: int = 0) -> str:
         return pad + "None\n"
     children = [_tree_pprint(child, tab + 1) for child in tree.children]
     return "{}{}\n{}".format(pad, str(tree), "".join(children))
+
+
+def split_groups(l, group):
+    """ Splits a list according to a binary grouping function.
+
+    Returns the positive group first
+
+    l : a list
+    group : a function from elements of l to boolean
+    """
+    p = [x for x in l if group(x)]
+    n = [x for x in l if not group(x)]
+    return p, n
