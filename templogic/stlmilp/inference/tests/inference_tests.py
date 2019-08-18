@@ -4,14 +4,16 @@ import logging
 import unittest
 import pickle
 import os
+import sys
+from typing import cast
 
-import numpy as np
+import numpy as np  # type: ignore
 
 from .. import inference
 from ... import llt
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-FOCUSED = os.environ.get("FOCUSED", False)
+FOCUSED = ":" in sys.argv[-1]
 
 
 class TestInference(unittest.TestCase):

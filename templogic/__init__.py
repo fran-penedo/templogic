@@ -4,9 +4,8 @@ logger = logging.getLogger("templogic")
 logger.addHandler(logging.NullHandler())
 
 import sys
-import os
 
-FOCUSED = os.environ.get("FOCUSED", False)
+FOCUSED = ":" in sys.argv[-1]
 
 if "nose" in sys.modules.keys() and FOCUSED:
     import logging.config

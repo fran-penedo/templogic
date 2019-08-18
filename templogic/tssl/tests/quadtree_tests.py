@@ -1,6 +1,7 @@
 import logging
 import unittest
 import os
+import sys
 from functools import partial
 
 import numpy as np  # type: ignore
@@ -9,7 +10,7 @@ import numpy.testing as npt  # type: ignore
 from .. import quadtree
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-FOCUSED = os.environ.get("FOCUSED", False)
+FOCUSED = ":" in sys.argv[-1]
 
 
 class TestQuadTree(unittest.TestCase):
