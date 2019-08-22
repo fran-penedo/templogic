@@ -11,8 +11,8 @@ import signal
 
 import numpy as np  # type: ignore
 
-from .. import stl, llt
-from . import impurity
+from .. import stl
+from . import impurity, llt
 from templogic.util import split_groups
 
 logger = logging.getLogger(__name__)

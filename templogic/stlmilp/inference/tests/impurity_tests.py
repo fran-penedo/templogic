@@ -6,8 +6,7 @@ import unittest
 import numpy as np  # type: ignore
 import numpy.testing as npt  # type: ignore
 
-from .. import inference, impurity
-from ... import llt
+from .. import inference, impurity, llt
 
 
 class TestSTL(unittest.TestCase):

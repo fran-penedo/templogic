@@ -9,8 +9,7 @@ from typing import cast
 
 import numpy as np  # type: ignore
 
-from .. import inference
-from ... import llt
+from .. import inference, llt
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 FOCUSED = ":" in sys.argv[-1]

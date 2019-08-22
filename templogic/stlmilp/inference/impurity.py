@@ -14,7 +14,7 @@ from bisect import bisect_right
 import numpy as np  # type: ignore
 import scipy.optimize as opt  # type: ignore
 
-from ..llt import SimpleModel
+from .llt import SimpleModel
 from ..stl import robustness
 from templogic.util import split_groups
 

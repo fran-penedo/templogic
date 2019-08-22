@@ -3,7 +3,7 @@
 Author: Francisco Penedo (franp@bu.edu)
 
 """
-from . import stl
+from .. import stl
 from bisect import bisect_right
 import logging
 
