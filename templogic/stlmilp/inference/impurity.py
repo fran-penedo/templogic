@@ -9,29 +9,56 @@ from __future__ import division, absolute_import, print_function
 
 import math
 import logging
-from bisect import bisect_right
+from typing import Tuple, Sequence, Iterable
+from abc import ABC, abstractmethod
 
 import numpy as np  # type: ignore
 import scipy.optimize as opt  # type: ignore
 
-from .llt import SimpleModel
-from ..stl import robustness
+from .llt import Primitive
+from ..stl import STLModel
 from templogic.util import split_groups
 
 logger = logging.getLogger(__name__)
 
 
+class ImpurityDataSet(ABC):
+    @property
+    @abstractmethod
+    def time_bounds(self) -> Tuple[float, float]:
+        pass
+
+    @property
+    @abstractmethod
+    def data_bounds(self) -> Sequence[Tuple[float, float]]:
+        pass
+
+    @abstractmethod
+    def models(self, interpolate: bool, tinter: float) -> Iterable[STLModel]:
+        pass
+
+    @property
+    @abstractmethod
+    def labels(self) -> Sequence[int]:
+        # Consider if needed
+        pass
+
+    @abstractmethod
+    def __len__(self) -> int:
+        pass
+
+
 def optimize_impurity(
-    traces,
-    primitive,
+    traces: ImpurityDataSet,
+    primitive: Primitive,
     rho,
     disp=False,
     optimizer_args=None,
     times=None,
-    interpolate=False,
+    interpolate: bool = False,
     tinter=None,
     impurity=None,
-):
+) -> Tuple[Primitive, float]:
     """ Optimizes the impurity function given for the given labeled traces.
 
     """
@@ -48,79 +75,44 @@ def optimize_impurity(
     if impurity is None:
         impurity = ext_inf_gain
     # [t0, t1, t3, pi]
-    maxt = max(np.amax(traces.get_sindex(-1), 1))
+    # maxt = max(np.amax(traces.get_sindex(-1), 1))
+    # mint = min(np.amin(traces.get_sindex(-1), 1))
     # Might not be needed since this is for forces and the last one is not
     # relevant
     # if times is not None:
     #     maxt = maxt + times[1] # Add one more to reach the ends
-    lower, upper = primitive.parameter_bounds(
-        maxt,
-        min(np.amin(traces.get_sindex(primitive.index), 1)),
-        max(np.amax(traces.get_sindex(primitive.index), 1)),
-    )
-    models = [SimpleModel(signal, interpolate, tinter) for signal in traces.signals]
-    args = DEArgs(primitive, models, rho, traces, maxt, times)
+    # lower, upper = primitive.parameter_bounds(
+    #     (mint, maxt),
+    #     min(np.amin(traces.get_sindex(primitive.index), 1)),
+    #     max(np.amax(traces.get_sindex(primitive.index), 1)),
+    # )
+    bounds = primitive.parameter_bounds(traces.time_bounds, traces.data_bounds)
+    models = list(traces.models(interpolate, tinter))
+    args = DEArgs(primitive, models, rho, traces, times)
 
     # Optimize over t0, v1, v3, pi, where v1 / maxt = t1 - t0 / maxt - t0 and
     # v3 / maxt = t3 / maxt - t1
     if len(traces) < 50:
         optimizer_args_def["workers"] = 1
     res = opt.differential_evolution(
-        impurity,
-        bounds=list(zip(lower, upper)),
-        args=(args,),
-        disp=disp,
-        **optimizer_args_def
+        impurity, bounds=bounds, args=(args,), disp=disp, **optimizer_args_def
     )
-    theta = _transform_pars(res.x, maxt, times)
-    primitive.set_llt_pars(theta)
+    primitive.set_pars(res.x, traces.time_bounds, times)
     return primitive, res.fun
 
 
 class DEArgs(object):
-    def __init__(self, primitive, models, rho, traces, maxt, times=None):
+    def __init__(
+        self, primitive: Primitive, models, rho, traces: ImpurityDataSet, times=None
+    ):
         self.primitive = primitive
         self.models = models
         self.rho = rho
         self.traces = traces
-        self.maxt = maxt
         self.times = times
 
 
-def _transform_pars(theta, maxt, times):
-    # t0, v1, v3, pi -> t0, t1, t3, pi
-    if len(theta) == 4:
-        t0, t1, t3, pi = theta
-        if maxt > 0:
-            t1 = t0 + (maxt - t0) * t1 / maxt
-            t3 = (maxt - t1) * t3 / maxt
-            t0, t1, t3 = [_round_t(t, times) for t in [t0, t1, t3]]
-        else:
-            t0 = t1 = t3 = 0.0
-
-        return [t0, t1, t3, pi]
-    elif len(theta) == 3:
-        t0, t1, pi = theta
-        if maxt > 0:
-            t1 = t0 + (maxt - t0) * t1 / maxt
-            t0, t1 = [_round_t(t, times) for t in [t0, t1]]
-        else:
-            t0 = t1 = 0.0
-
-        return [t0, t1, pi]
-    else:
-        raise ValueError()
-
-
-def _round_t(t, times):
-    if times is None:
-        return t
-    else:
-        i = bisect_right(times, t) - 1
-        return times[i]
-
-
-def inf_gain(theta, *args):
+def inf_gain(theta: Tuple, *args: DEArgs) -> float:
     """ Obtains the negative of information gain of the sample theta.
 
     The extra fixed arguments are defined as:
@@ -130,29 +122,22 @@ def inf_gain(theta, *args):
     primitive, prev_rho is the robustness of each trace up until the current
     node, traces is a Traces object and maxt is the maximum sampled time.
     """
-    args = args[0]
-    primitive = args.primitive
-    models = args.models
+    l_args = args[0]
+    primitive = l_args.primitive
+    models = l_args.models
     # May be None, TODO check. Can't do it up in the stack
-    prev_rho = args.rho
-    traces = args.traces
-    maxt = args.maxt
-    times = args.times
+    prev_rho = l_args.rho
+    traces = l_args.traces
+    times = l_args.times
 
-    theta = _transform_pars(theta, maxt, times)
+    primitive.set_pars(theta, traces.time_bounds, times)
 
-    # if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
-    #     print 'bad'
-    #     return np.inf
-
-    primitive.set_llt_pars(theta)
-
-    rho = [robustness(primitive, model) for model in models]
+    rho = [primitive.score(model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
-    if np.any(np.isclose(0.0, rho, atol=1e-5)):
-        penalty = 100.0
-    else:
-        penalty = 0.0
+    # if np.any(np.isclose(0.0, rho, atol=1e-5)):
+    #     penalty = 100.0
+    # else:
+    #     penalty = 0.0
     lrho = [rho]
 
     if prev_rho is not None:
@@ -177,7 +162,7 @@ def inf_gain(theta, *args):
     return -ig
 
 
-def _entropy(part):
+def _entropy(part) -> float:
     if len(part) == 0:
         return 0.0
 
@@ -190,7 +175,7 @@ def _entropy(part):
         return -w_p * math.log(w_p) - w_n * math.log(w_n)
 
 
-def ext_inf_gain(theta, *args):
+def ext_inf_gain(theta: Tuple, *args: DEArgs):
     """ Obtains the negative of extended information gain of the sample theta.
 
     The extra fixed arguments are defined as:
@@ -200,24 +185,21 @@ def ext_inf_gain(theta, *args):
     primitive, prev_rho is the robustness of each trace up until the current
     node, traces is a Traces object and maxt is the maximum sampled time.
     """
-    args = args[0]
-    primitive = args.primitive
-    models = args.models
+    l_args = args[0]
+    primitive = l_args.primitive
+    models = l_args.models
     # May be None, TODO check. Can't do it up in the stack
-    prev_rho = args.rho
-    traces = args.traces
-    maxt = args.maxt
-    times = args.times
-
-    theta = _transform_pars(theta, maxt, times)
+    prev_rho = l_args.rho
+    traces = l_args.traces
+    times = l_args.times
 
     # if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
     #     print 'bad'
     #     return np.inf
 
-    primitive.set_llt_pars(theta)
+    primitive.set_pars(theta, traces.time_bounds, times)
 
-    rho = [robustness(primitive, model) for model in models]
+    rho = [primitive.score(model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
     if np.any(np.isclose(0.0, rho, atol=1e-5)):
         penalty = 100.0
@@ -246,13 +228,13 @@ def ext_inf_gain(theta, *args):
     return -ig + penalty
 
 
-def _ext_inweights(part, stotal):
+def _ext_inweights(part, stotal) -> float:
     if len(part) == 0:
         return 0
     return sum(np.abs(list(zip(*part))[0])) / stotal
 
 
-def _ext_entropy(part):
+def _ext_entropy(part) -> float:
     if len(part) == 0:
         return 0
 
@@ -269,26 +251,3 @@ def _ext_entropy(part):
         return 0
     else:
         return -w_p * math.log(w_p) - w_n * math.log(w_n)
-
-
-# Unused
-
-
-def constrained_sample(theta_scaled):
-    # all in [0, 1]
-    t0, t1, t3, pi = theta_scaled
-    if t0 > t1:
-        t0, t1 = t1, t0
-    if t1 + t3 > 1:
-        t3 = 1 - t1
-
-    return [t0, t1, t3, pi]
-
-
-def constrained_sample_init(theta_scaled):
-    # all in [0, 1]
-    t0, t1, t3, pi = theta_scaled
-    t1 = t0 + (1 - t0) * t1
-    t3 = (1 - t1) * t3
-
-    return [t0, t1, t3, pi]

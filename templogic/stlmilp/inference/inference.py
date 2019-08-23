@@ -8,6 +8,7 @@ Author: Francisco Penedo (franp@bu.edu)
 import logging
 from multiprocessing.pool import Pool
 import signal
+from typing import Sequence, Tuple, Iterable
 
 import numpy as np  # type: ignore
 
@@ -18,22 +19,21 @@ from templogic.util import split_groups
 logger = logging.getLogger(__name__)
 
 
-class Traces(object):
+class Traces(impurity.ImpurityDataSet):
     """ Class to store a set of labeled signals
     """
 
-    def __init__(self, signals=None, labels=None):
+    def __init__(self, signals=None, labels=None) -> None:
         """ signals : list of m by n matrices
                   Last row should be the sampling times
         labels : list of labels
                  Each label should be either 1 or -1
         """
-        self._signals = (
-            np.array([], dtype=float)
-            if signals is None
-            else np.array(signals, dtype=float)
-        )
-        self._labels = np.array([] if labels is None else list(labels))
+        self._signals = np.array([], dtype=float)
+        self._labels = np.array([])
+        self._time_bounds = (np.inf, -np.inf)
+        self._data_bounds: Sequence[Tuple[float, float]] = []
+        self.add_traces(signals, labels)
 
     @property
     def labels(self):
@@ -42,6 +42,17 @@ class Traces(object):
     @property
     def signals(self):
         return self._signals
+
+    @property
+    def time_bounds(self) -> Tuple[float, float]:
+        return self._time_bounds
+
+    @property
+    def data_bounds(self) -> Sequence[Tuple[float, float]]:
+        return self._data_bounds
+
+    def models(self, interpolate: bool, tinter: float) -> Iterable[llt.SimpleModel]:
+        return (llt.SimpleModel(signal, interpolate, tinter) for signal in self.signals)
 
     def get_sindex(self, i):
         """ Obtains the ith component of each signal
@@ -60,9 +71,24 @@ class Traces(object):
         """
         return zip(*self.as_list())
 
-    def add_traces(self, signals, labels):
-        self._signals = np.vstack([self._signals, signals])
-        self._labels = np.hstack([self._labels, labels])
+    def add_traces(self, signals, labels) -> None:
+        if len(self) == 0:
+            self._signals = np.array(list(signals), dtype=float)
+            self._labels = np.array(labels)
+        else:
+            self._signals = np.vstack(
+                [self._signals, np.array(list(signals), dtype=float)]
+            )
+            self._labels = np.hstack([self._labels, np.array(labels)])
+        mins, maxs = np.amin(signals, (2, 0)), np.amax(signals, (2, 0))
+        mint, maxt = self.time_bounds
+        self._time_bounds = (min(mint, mins[-1]), max(maxt, maxs[-1]))
+        if len(self._data_bounds) == 0:
+            self._data_bounds = [(np.inf, -np.inf) for i in range(len(mins) - 1)]
+        self._data_bounds = [
+            (min(cur[0], mins[i]), max(cur[1], maxs[i]))
+            for i, cur in enumerate(self._data_bounds)
+        ]
 
     def copy(self):
         return Traces(self._signals.copy(), self._labels.copy())

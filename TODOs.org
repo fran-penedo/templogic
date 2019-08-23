@@ -1,19 +1,23 @@
 
-* TODO Compute DiffEvo bounds more generically
+* DONE Compute DiffEvo bounds more generically
+  CLOSED: [2019-08-23 Fri 18:02]
   As it is, it assumes an index for the primitive. Probably let the primitive compute them from the traces alone.
 [2019-08-21 Wed 17:51]
 [[file:~/cloud/dev/stlmilp/templogic/stlmilp/inference/impurity.py::lower,%20upper%20=%20primitive.parameter_bounds(]]
 
-* TODO Let primitives transform the parameters
+* DONE Let primitives transform the parameters
+  CLOSED: [2019-08-23 Fri 18:03]
   DiffEvo code should be agnostic to the parameters of the primitive
 [2019-08-21 Wed 17:57]
 [[file:~/cloud/dev/stlmilp/templogic/stlmilp/inference/impurity.py::theta%20=%20_transform_pars(res.x,%20maxt,%20times)]]
 
-* TODO Robustness should be made a method of the formula
+* DONE Robustness should be made a method of the formula
+  CLOSED: [2019-08-23 Fri 18:03]
 [2019-08-21 Wed 17:59]
 [[file:~/cloud/dev/stlmilp/templogic/stlmilp/inference/impurity.py::rho%20=%20%5Brobustness(primitive,%20model)%20for%20model%20in%20models%5D]]
 
-* TODO Decide who has the responsibility of model creation
+* DONE Decide who has the responsibility of model creation
+  CLOSED: [2019-08-23 Fri 18:03]
   Primitives?
 [2019-08-21 Wed 18:00]
 [[file:~/cloud/dev/stlmilp/templogic/stlmilp/inference/impurity.py::models%20=%20%5BSimpleModel(signal,%20interpolate,%20tinter)%20for%20signal%20in%20traces.signals%5D]]

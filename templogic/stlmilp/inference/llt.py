@@ -6,16 +6,20 @@ Author: Francisco Penedo (franp@bu.edu)
 from .. import stl
 from bisect import bisect_right
 import logging
+from abc import ABC, abstractmethod
 
 import itertools
 from enum import Enum
 import operator
-from typing import Iterable, Sequence, Tuple, Union, cast
+from typing import Iterable, Sequence, Tuple, Union, cast, TypeVar, Generic, Optional
 
 import numpy as np  # type: ignore
 from pyparsing import Word, alphas, Suppress, nums, Literal, MatchFirst  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+T = TypeVar("T")
 
 
 class Relation(Enum):
@@ -39,6 +43,37 @@ class Relation(Enum):
 
     def __str__(self):
         return "<=" if self == Relation.LE else ">"
+
+
+class Primitive(ABC, Generic[T]):
+    @abstractmethod
+    def copy(self) -> "Primitive":
+        pass
+
+    @abstractmethod
+    def parameter_bounds(
+        self,
+        time_bounds: Tuple[float, float],
+        data_bounds: Sequence[Tuple[float, float]],
+    ) -> Sequence[Tuple[float, float]]:
+        pass
+
+    @abstractmethod
+    def set_pars(
+        self,
+        parameters: T,
+        time_bounds: Tuple[float, float],
+        times: Optional[Sequence[float]],
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def negate(self) -> None:
+        pass
+
+    @abstractmethod
+    def score(self, model: stl.STLModel) -> float:
+        pass
 
 
 class LLTSignal(stl.Signal):
@@ -105,7 +140,7 @@ class LLTSignal(stl.Signal):
         self._index = value
 
 
-class LLTFormulaD1(stl.STLAnd):
+class LLTFormulaD1(stl.STLAnd, Primitive[Tuple[float, float, float]]):
     signal: LLTSignal
     outer: stl.TemporalTerm
 
@@ -163,16 +198,36 @@ class LLTFormulaD1(stl.STLAnd):
     def t1(self, value: float) -> None:
         self.outer.bounds = (self.outer.bounds[0], value)
 
-    def reverse_op(self) -> None:
+    def negate(self) -> None:
         """Reverses the operator of the atomic proposition
         """
         self.op = self.op.flip()
 
-    def copy(self) -> "LLTFormula":
-        return cast("LLTFormula", super().copy())
+    def copy(self) -> "LLTFormulaD1":
+        return cast("LLTFormulaD1", super().copy())
 
-    def parameter_bounds(self, maxt: float, minpi: float, maxpi: float) -> Tuple:
-        return [0, 0, minpi], [maxt, maxt, maxpi]
+    def parameter_bounds(
+        self,
+        time_bounds: Tuple[float, float],
+        data_bounds: Sequence[Tuple[float, float]],
+    ) -> Sequence[Tuple[float, float]]:
+        return [time_bounds, time_bounds, data_bounds[self.index]]
+
+    def set_pars(
+        self,
+        parameters: Tuple[float, float, float],
+        time_bounds: Tuple[float, float],
+        times: Optional[Sequence[float]],
+    ) -> None:
+        t0, t1, pi = parameters
+        maxt = time_bounds[1]
+        if maxt > 0:
+            t1 = t0 + (maxt - t0) * t1 / maxt
+            t0, t1 = [_round_t(t, times) for t in [t0, t1]]
+        else:
+            t0 = t1 = 0.0
+
+        self.set_llt_pars((t0, t1, pi))
 
     def set_llt_pars(self, theta: Tuple[float, float, float]) -> None:
         """ Sets the parameters of a primitive
@@ -182,8 +237,11 @@ class LLTFormulaD1(stl.STLAnd):
         self.t1 = t1
         self.pi = pi
 
+    def score(self, model: stl.STLModel) -> float:
+        return stl.robustness(self, model)
 
-class LLTFormula(stl.STLAnd):
+
+class LLTFormula(stl.STLAnd, Primitive[Tuple[float, float, float, float]]):
     """A depth 2 STL formula.
     """
 
@@ -255,7 +313,7 @@ class LLTFormula(stl.STLAnd):
     def t3(self, value: float) -> None:
         self.inner.bounds = (self.inner.bounds[0], value)
 
-    def reverse_op(self) -> None:
+    def negate(self) -> None:
         """Reverses the operator of the atomic proposition
         """
         self.op = self.op.flip()
@@ -263,8 +321,28 @@ class LLTFormula(stl.STLAnd):
     def copy(self) -> "LLTFormula":
         return cast("LLTFormula", super().copy())
 
-    def parameter_bounds(self, maxt: float, minpi: float, maxpi: float) -> Tuple:
-        return [0, 0, 0, minpi], [maxt, maxt, maxt, maxpi]
+    def parameter_bounds(
+        self,
+        time_bounds: Tuple[float, float],
+        data_bounds: Sequence[Tuple[float, float]],
+    ) -> Sequence[Tuple[float, float]]:
+        return [time_bounds, time_bounds, time_bounds, data_bounds[self.index]]
+
+    def set_pars(
+        self,
+        parameters: Tuple[float, float, float, float],
+        time_bounds: Tuple[float, float],
+        times: Optional[Sequence[float]],
+    ) -> None:
+        t0, t1, t3, pi = parameters
+        maxt = time_bounds[1]
+        if maxt > 0:
+            t1 = t0 + (maxt - t0) * t1 / maxt
+            t3 = (maxt - t1) * t3 / maxt
+            t0, t1, t3 = [_round_t(t, times) for t in [t0, t1, t3]]
+        else:
+            t0 = t1 = t3 = 0.0
+        self.set_llt_pars((t0, t1, t3, pi))
 
     def set_llt_pars(self, theta: Tuple[float, float, float, float]) -> None:
         """Sets the parameters of a primitive
@@ -274,6 +352,9 @@ class LLTFormula(stl.STLAnd):
         self.t1 = t1
         self.t3 = t3
         self.pi = pi
+
+    def score(self, model: stl.STLModel):
+        return stl.robustness(self, model)
 
 
 SignalType = Sequence[Sequence[float]]
@@ -401,3 +482,11 @@ def llt_parser():
     """
     stl_parser = MatchFirst(stl.stl_parser(expr_parser()))
     return stl_parser
+
+
+def _round_t(t: float, times: Optional[Sequence[float]]) -> float:
+    if times is None:
+        return t
+    else:
+        i = bisect_right(times, t) - 1
+        return times[i]

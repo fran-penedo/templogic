@@ -28,16 +28,14 @@ class TestSTL(unittest.TestCase):
 
         npt.assert_almost_equal(
             impurity.ext_inf_gain(
-                [1, 4, 0, 4.5],
-                impurity.DEArgs(primitive_good, models, rho, traces, maxt),
+                [1, 4, 0, 4.5], impurity.DEArgs(primitive_good, models, rho, traces)
             ),
             -0.6869615765973234,
         )
 
         npt.assert_almost_equal(
             impurity.ext_inf_gain(
-                [1, 4, 0, 4.5],
-                impurity.DEArgs(primitive_bad, models, rho, traces, maxt),
+                [1, 4, 0, 4.5], impurity.DEArgs(primitive_bad, models, rho, traces)
             ),
             0.0,
         )
@@ -60,16 +58,14 @@ class TestSTL(unittest.TestCase):
 
         npt.assert_almost_equal(
             impurity.inf_gain(
-                [1, 4, 0, 4.5],
-                impurity.DEArgs(primitive_good, models, rho, traces, maxt),
+                [1, 4, 0, 4.5], impurity.DEArgs(primitive_good, models, rho, traces)
             ),
             -0.69314718056,
         )
 
         npt.assert_almost_equal(
             impurity.inf_gain(
-                [1, 4, 0, 4.5],
-                impurity.DEArgs(primitive_bad, models, rho, traces, maxt),
+                [1, 4, 0, 4.5], impurity.DEArgs(primitive_bad, models, rho, traces)
             ),
             0.0,
         )
@@ -90,11 +86,10 @@ class TestSTL(unittest.TestCase):
         maxt = 0
 
         gain_good = impurity.ext_inf_gain(
-            [0, 0, 0, -1.0], impurity.DEArgs(primitive_good, models, rho, traces, maxt)
+            [0, 0, 0, -1.0], impurity.DEArgs(primitive_good, models, rho, traces)
         )
         gain_bad = impurity.ext_inf_gain(
-            [0, 0, 0, -1.22366],
-            impurity.DEArgs(primitive_bad, models, rho, traces, maxt),
+            [0, 0, 0, -1.22366], impurity.DEArgs(primitive_bad, models, rho, traces)
         )
 
         self.assertGreater(gain_bad, gain_good)
