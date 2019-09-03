@@ -3,11 +3,21 @@ import unittest
 
 import numpy as np  # type: ignore
 
-from .. import milp_util as milp
+try:
+    import gurobipy
+
+    gurobi_installed = True
+except ImportError:
+    gurobi_installed = False
+
+if gurobi_installed:
+    from .. import milp_util as milp
 
 
 class TestSTL(unittest.TestCase):
     def setUp(self) -> None:
+        if not gurobi_installed:
+            self.skipTest("Skipping MILP tests: gurobipy dependency not found")
         self.m = milp.create_milp("foo")
         self.x0 = self.m.addVar(lb=-milp.GRB.INFINITY, ub=milp.GRB.INFINITY, name="x0")
         self.x1 = self.m.addVar(lb=-milp.GRB.INFINITY, ub=milp.GRB.INFINITY, name="x1")
