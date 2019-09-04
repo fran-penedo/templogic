@@ -1,7 +1,7 @@
 import itertools as it
 import logging
 import math
-from typing import Sequence, Callable, TypeVar, List, Type, Tuple
+from typing import Sequence, Callable, TypeVar, List, Type, Tuple, Optional
 
 import numpy as np  # type: ignore
 
@@ -28,7 +28,7 @@ class QuadTree(Tree[T, "QuadTree"]):
             raise ValueError("Quad trees must have 4 children per node")
         super(QuadTree, self.__class__).children.fset(self, value)  # type: ignore
 
-    def set_child(self, idx: int, tree: "QuadTree[T]"):
+    def set_child(self, idx: int, tree: "Optional[QuadTree[T]]"):
         if idx >= 4:
             raise ValueError("Quad trees must have 4 children per node")
         else:
