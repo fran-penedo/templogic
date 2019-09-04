@@ -8,7 +8,8 @@ Author: Francisco Penedo (franp@bu.edu)
 """
 import numpy as np
 from scipy.io import loadmat, savemat
-#import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 from os import path
 import argparse
 import os
@@ -17,6 +18,7 @@ from .inference import perfect_stop, depth_stop, lltinf, Traces
 from ..llt import llt_parser, SimpleModel
 from . import validate
 from ..stl import satisfies
+
 
 def load_traces(filename):
     """
@@ -29,16 +31,16 @@ def load_traces(filename):
                The name of a MAT file
     """
     # load data from MAT file
-    mat_data =  loadmat(filename)
+    mat_data = loadmat(filename)
     # add time dimension to signals' data
-    dims = list(mat_data['data'].shape)
+    dims = list(mat_data["data"].shape)
     dims[1] += 1
     data = np.zeros(dims)
-    data[:, :dims[1]-1, :] = mat_data['data']
-    data[:, dims[1]-1, :] = mat_data['t']
+    data[:, : dims[1] - 1, :] = mat_data["data"]
+    data[:, dims[1] - 1, :] = mat_data["t"]
     # create list of labels (classes: positive, negative)
-    if 'labels' in mat_data:
-        labels = list(mat_data['labels'][0])
+    if "labels" in mat_data:
+        labels = list(mat_data["labels"][0])
     else:
         labels = None
     # create data structure of traces
@@ -56,11 +58,11 @@ def save_traces(traces, filename):
     """
     signals, labels = traces.as_list()
     mat_data = {
-        'data': signals[:, :(signals.shape[1] - 1), :],
-        't': signals[:, (signals.shape[1] - 1), :],
+        "data": signals[:, : (signals.shape[1] - 1), :],
+        "t": signals[:, (signals.shape[1] - 1), :],
     }
     if len(labels) > 0:
-        mat_data['labels'] = labels
+        mat_data["labels"] = labels
 
     savemat(filename, mat_data)
 
@@ -68,22 +70,27 @@ def save_traces(traces, filename):
 # Cross validation test function
 def cv_test(matfile, depth=3, out_perm=None, verbose=False):
     traces = load_traces(matfile)
-    mean, std, missrates, classifiers = \
-        validate.cross_validation(zip(*traces.as_list()),
-                                  lltinf_learn(depth, verbose),
-                                  save=out_perm, disp=verbose)
-    print "Mean: %f" % mean
-    print "Standard Deviation %f" % std
+    mean, std, missrates, classifiers = validate.cross_validation(
+        zip(*traces.as_list()),
+        lltinf_learn(depth, verbose),
+        save=out_perm,
+        disp=verbose,
+    )
+    print("Mean: %f" % mean)
+    print("Standard Deviation %f" % std)
     for i in range(len(missrates)):
-        print "Fold %d - Miss rate: %f" % (i, missrates[i])
-        print classifiers[i].get_formula()
+        print("Fold %d - Miss rate: %f" % (i, missrates[i]))
+        print(classifiers[i].get_formula())
 
 
 # Learning wrapper
 def lltinf_learn(depth, disp=False):
-    return lambda data: lltinf(Traces(*zip(*data)), depth=depth,
-                               stop_condition=[perfect_stop, depth_stop],
-                               disp=disp)
+    return lambda data: lltinf(
+        Traces(*zip(*data)),
+        depth=depth,
+        stop_condition=[perfect_stop, depth_stop],
+        disp=disp,
+    )
 
 
 def learn_formula(matfile, depth, verbose=True):
@@ -100,8 +107,8 @@ def learn_formula(matfile, depth, verbose=True):
     traces = load_traces(matfile)
     learn = lltinf_learn(depth, verbose)
     classifier = learn(zip(*traces.as_list()))
-    print "Classifier:"
-    print classifier.get_formula()
+    print("Classifier:")
+    print(classifier.get_formula())
 
 
 def classify_one(formula, signal):
@@ -121,7 +128,7 @@ def classify(data, classifier, out):
           The output file
     """
     traces = load_traces(data)
-    with open(classifier, 'r') as c:
+    with open(classifier, "r") as c:
         stl = llt_parser().parseString(c.readline())[0]
 
     labels = [classify_one(stl, signal) for signal in traces.signals]
@@ -132,9 +139,12 @@ def get_argparser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('action', choices=['learn', 'cv', 'classify'], nargs='?',
-                        default='cv', help=
-                            """
+    parser.add_argument(
+        "action",
+        choices=["learn", "cv", "classify"],
+        nargs="?",
+        default="cv",
+        help="""
                             action to take:
                             'learn': builds a classifier for the given training
                             set. The resulting stl formula will be printed.
@@ -142,33 +152,54 @@ def get_argparser():
                             given training set.
                             'classify': classifies a data set using the given
                             classifier (-c must be specified)
-                            """)
-    parser.add_argument('-d', '--depth', metavar='D', type=int,
-                        default=3, help='maximum depth of the decision tree')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='display more info')
-    parser.add_argument('file', help='.mat file containing the data')
-    parser.add_argument('--out-perm', metavar='f', default=None,
-                        help='if specified, saves the cross validation permutation into f')
-    parser.add_argument('-c', '--classifier', metavar='f', default=None,
-                        help='file containing the classifier')
-    parser.add_argument('-o', '--out', metavar='f', default=None,
-                        help='results from the classification will be stored in MAT format in this file')
+                            """,
+    )
+    parser.add_argument(
+        "-d",
+        "--depth",
+        metavar="D",
+        type=int,
+        default=3,
+        help="maximum depth of the decision tree",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="display more info"
+    )
+    parser.add_argument("file", help=".mat file containing the data")
+    parser.add_argument(
+        "--out-perm",
+        metavar="f",
+        default=None,
+        help="if specified, saves the cross validation permutation into f",
+    )
+    parser.add_argument(
+        "-c",
+        "--classifier",
+        metavar="f",
+        default=None,
+        help="file containing the classifier",
+    )
+    parser.add_argument(
+        "-o",
+        "--out",
+        metavar="f",
+        default=None,
+        help="results from the classification will be stored in MAT format in this file",
+    )
     return parser
 
 
 def get_path(f):
     return path.join(os.getcwd(), f)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     args = get_argparser().parse_args()
-    if args.action == 'learn':
+    if args.action == "learn":
         learn_formula(get_path(args.file), args.depth)
-    elif args.action =='cv':
-        cv_test(get_path(args.file), args.depth,
-                get_path(args.out_perm))
-    elif args.action == 'classify':
-        classify(get_path(args.file), get_path(args.classifier),
-                 get_path(args.out))
+    elif args.action == "cv":
+        cv_test(get_path(args.file), args.depth, get_path(args.out_perm))
+    elif args.action == "classify":
+        classify(get_path(args.file), get_path(args.classifier), get_path(args.out))
     else:
         raise Exception("Action not implemented")
