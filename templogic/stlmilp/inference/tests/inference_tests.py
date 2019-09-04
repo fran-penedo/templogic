@@ -11,6 +11,9 @@ import numpy as np  # type: ignore
 
 from .. import inference, llt
 
+logger = logging.getLogger(__name__)
+
+
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 FOCUSED = ":" in sys.argv[-1]
 
@@ -30,6 +33,7 @@ class TestInference(unittest.TestCase):
 
         correct_cut = 4.5
         f = cast(llt.LLTFormula, lltinf.get_formula())
+        # logger.debug(lltinf.tree)
         self.assertAlmostEqual(f.pi, correct_cut, places=2)
 
     def test_lltinf_5_signals(self):

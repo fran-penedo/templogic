@@ -8,13 +8,13 @@ Author: Francisco Penedo (franp@bu.edu)
 import logging
 from multiprocessing.pool import Pool
 import signal
-from typing import Sequence, Tuple, Iterable
+from typing import Sequence, Tuple, Iterable, Optional
 
 import numpy as np  # type: ignore
 
 from .. import stl
 from . import impurity, llt
-from templogic.util import split_groups
+from templogic.util import split_groups, Tree
 
 logger = logging.getLogger(__name__)
 
@@ -93,16 +93,30 @@ class Traces(impurity.ImpurityDataSet):
     def copy(self):
         return Traces(self._signals.copy(), self._labels.copy())
 
+    def __deepcopy__(self, memo):
+        return self.copy()
+
     def __len__(self):
         return len(self.signals)
 
 
-class DTree(object):
+class TreeData(object):
+    def __init__(self, primitive, traces, robustness=None):
+        if primitive is None or traces is None:
+            raise AttributeError()
+        self.primitive = primitive
+        self.traces = traces
+        self.robustness = np.array(robustness)
+
+
+class DTree(Tree[TreeData, "DTree"]):
     """ Decission tree recursive structure
 
     """
 
-    def __init__(self, primitive, traces, robustness=None, left=None, right=None):
+    def __init__(
+        self, primitive, traces, robustness=None, left=None, right=None
+    ) -> None:
         """ primitive : a LLTFormula object
                     The node's primitive
         traces : a Traces object
@@ -113,35 +127,14 @@ class DTree(object):
         right : a DTree object. Optional
                 The subtree corresponding to a sat result to this node's test
         """
-        self.primitive = primitive
-        self.traces = traces
-        self.robustness = np.array(robustness)
-        self._left = left
-        self._right = right
-        self.parent = None
+        super().__init__(TreeData(primitive, traces, robustness), [None, None])
+        self.left = left
+        self.right = right
 
-    def set_tree(self, tree):
-        self.primitive = tree.primitive
-        self.traces = tree.traces
-        self.robustness = tree.robustness
+    def set_tree(self, tree: "DTree") -> None:
+        self.data = tree.data
         self.left = tree.left
         self.right = tree.right
-
-    def copy(self):
-        return DTree(
-            self.primitive, self.traces, self.robustness, self.left, self.right
-        )
-
-    def deep_copy(self):
-        left = None if self.left is None else self.left.deep_copy()
-        right = None if self.right is None else self.right.deep_copy()
-        return DTree(
-            self.primitive.copy(),
-            self.traces.copy(),
-            self.robustness.copy(),
-            left,
-            right,
-        )
 
     def classify(self, signal, interpolate=False, tinter=None):
         """ Classifies a signal. Returns a label 1 or -1
@@ -194,44 +187,51 @@ class DTree(object):
                 return self
 
     @property
-    def left(self):
-        return self._left
+    def left(self) -> "Optional[DTree]":
+        return self.get_child(0)
 
     @left.setter
-    def left(self, value):
-        self._left = value
-        if value is not None:
-            value.parent = self
+    def left(self, value: "Optional[DTree]") -> None:
+        self.set_child(0, value)
 
     @property
-    def right(self):
-        return self._right
+    def right(self) -> "Optional[DTree]":
+        return self.get_child(1)
 
     @right.setter
-    def right(self, value):
-        self._right = value
-        if value is not None:
-            value.parent = self
+    def right(self, value: "Optional[DTree]") -> None:
+        self.set_child(1, value)
 
-    def depth(self):
-        if self.parent is None:
-            return 0
-        else:
-            return 1 + self.parent.depth()
+    @property
+    def primitive(self):
+        return self.data.primitive
 
-    def pprint(self, tab=0):
-        return _pprint(self, tab)
+    @primitive.setter
+    def primitive(self, value):
+        if value is None:
+            raise AttributeError()
+        self.data.primitive = value
 
+    @property
+    def traces(self):
+        return self.data.traces
 
-def _pprint(tree, tab=0):
-    pad = " |" * tab + "-"
-    if tree is None:
-        return pad + "None\n"
-    left = _pprint(tree.left, tab + 1)
-    right = _pprint(tree.right, tab + 1)
-    return "{}{} ({})\n{}{}".format(
-        pad, str(tree.primitive), len(tree.traces), left, right
-    )
+    @traces.setter
+    def traces(self, value):
+        if value is None:
+            raise AttributeError()
+        self.data.traces = value
+
+    @property
+    def robustness(self):
+        return self.data.robustness
+
+    @robustness.setter
+    def robustness(self, value):
+        self.data.robustness = value
+
+    def __str__(self) -> str:
+        return f"{self.primitive} ({len(self.traces)})"
 
 
 def _pool_initializer():
@@ -358,7 +358,7 @@ class LLTInf(object):
                     tree = self._lltinf(
                         leaf.traces,
                         leaf.robustness,
-                        self.depth - leaf.depth(),
+                        self.depth - leaf.level(),
                         disp=disp,
                     )
                     old_tree = leaf.copy()
