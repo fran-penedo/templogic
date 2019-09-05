@@ -268,7 +268,7 @@ def add_always_penalized(
 
 def build_and_solve(
     spec: stl.STLTerm,
-    model_encode_f: Callable,  # FIXME
+    model_encode_f: Callable[[gModel, int], None],
     spec_obj: float,
     start_robustness_tree: stl.RobustnessTree = None,
     outputflag: int = None,
@@ -278,7 +278,7 @@ def build_and_solve(
 ) -> gModel:
     # print spec
     if spec is not None:
-        hd = max(0, stl.horizon(spec)) + 1
+        hd = int(max(0, stl.horizon(spec)) + 1)
     else:
         hd = 0
 
