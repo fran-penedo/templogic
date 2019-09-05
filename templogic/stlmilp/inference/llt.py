@@ -3,11 +3,9 @@
 Author: Francisco Penedo (franp@bu.edu)
 
 """
-from .. import stl
-from bisect import bisect_right
 import logging
 from abc import ABC, abstractmethod
-
+from bisect import bisect_right
 import itertools
 from enum import Enum
 import operator
@@ -15,6 +13,9 @@ from typing import Iterable, Sequence, Tuple, Union, cast, TypeVar, Generic, Opt
 
 import numpy as np  # type: ignore
 from pyparsing import Word, alphas, Suppress, nums, Literal, MatchFirst  # type: ignore
+
+from .. import stl
+from templogic.util import round_t
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,9 @@ class Primitive(ABC, Generic[T]):
     @abstractmethod
     def score(self, model: stl.STLModel) -> float:
         pass
+
+    def satisfies(self, model: stl.STLModel) -> bool:
+        return self.score(model) >= 0
 
 
 class LLTSignal(stl.Signal):
@@ -140,7 +144,9 @@ class LLTSignal(stl.Signal):
         self._index = value
 
 
-class LLTFormulaD1(stl.STLAnd, Primitive[Tuple[float, float, float]]):
+class LLTFormulaD1(  # type: ignore # copy issues
+    stl.STLAnd, Primitive[Tuple[float, float, float]]
+):
     signal: LLTSignal
     outer: stl.TemporalTerm
 
@@ -223,7 +229,7 @@ class LLTFormulaD1(stl.STLAnd, Primitive[Tuple[float, float, float]]):
         maxt = time_bounds[1]
         if maxt > 0:
             t1 = t0 + (maxt - t0) * t1 / maxt
-            t0, t1 = [_round_t(t, times) for t in [t0, t1]]
+            t0, t1 = [round_t(t, times) for t in [t0, t1]]
         else:
             t0 = t1 = 0.0
 
@@ -241,7 +247,9 @@ class LLTFormulaD1(stl.STLAnd, Primitive[Tuple[float, float, float]]):
         return stl.robustness(self, model)
 
 
-class LLTFormula(stl.STLAnd, Primitive[Tuple[float, float, float, float]]):
+class LLTFormula(  # type: ignore # copy issues
+    stl.STLAnd, Primitive[Tuple[float, float, float, float]]
+):
     """A depth 2 STL formula.
     """
 
@@ -339,7 +347,7 @@ class LLTFormula(stl.STLAnd, Primitive[Tuple[float, float, float, float]]):
         if maxt > 0:
             t1 = t0 + (maxt - t0) * t1 / maxt
             t3 = (maxt - t1) * t3 / maxt
-            t0, t1, t3 = [_round_t(t, times) for t in [t0, t1, t3]]
+            t0, t1, t3 = [round_t(t, times) for t in [t0, t1, t3]]
         else:
             t0 = t1 = t3 = 0.0
         self.set_llt_pars((t0, t1, t3, pi))
@@ -482,11 +490,3 @@ def llt_parser():
     """
     stl_parser = MatchFirst(stl.stl_parser(expr_parser()))
     return stl_parser
-
-
-def _round_t(t: float, times: Optional[Sequence[float]]) -> float:
-    if times is None:
-        return t
-    else:
-        i = bisect_right(times, t) - 1
-        return times[i]

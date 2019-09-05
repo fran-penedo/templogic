@@ -1,3 +1,4 @@
+from bisect import bisect_right
 import logging
 import copy
 from typing import Callable, Generic, Iterable, List, Optional, Sequence, TypeVar, cast
@@ -119,3 +120,11 @@ def split_groups(l, group):
     p = [x for x in l if group(x)]
     n = [x for x in l if not group(x)]
     return p, n
+
+
+def round_t(t: float, times: Optional[Sequence[float]]) -> float:
+    if times is None:
+        return t
+    else:
+        i = bisect_right(times, t) - 1
+        return times[i]

@@ -8,7 +8,7 @@ Author: Francisco Penedo (franp@bu.edu)
 import logging
 from multiprocessing.pool import Pool
 import signal
-from typing import Sequence, Tuple, Iterable, Optional
+from typing import Sequence, Tuple, Optional, MutableSequence
 
 import numpy as np  # type: ignore
 
@@ -18,19 +18,21 @@ from templogic.util import split_groups, Tree
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["Traces", "LLTInf"]
+
 
 class Traces(impurity.ImpurityDataSet):
     """ Class to store a set of labeled signals
     """
 
-    def __init__(self, signals=None, labels=None) -> None:
+    def __init__(self, signals: Sequence = None, labels: Sequence[int] = None) -> None:
         """ signals : list of m by n matrices
-                  Last row should be the sampling times
+                  Last column should be the sampling times
         labels : list of labels
                  Each label should be either 1 or -1
         """
-        self._signals = np.array([], dtype=float)
-        self._labels = np.array([])
+        self._signals: MutableSequence = []
+        self._labels: MutableSequence[int] = []
         self._time_bounds = (np.inf, -np.inf)
         self._data_bounds: Sequence[Tuple[float, float]] = []
         self.add_traces(signals, labels)
@@ -51,15 +53,8 @@ class Traces(impurity.ImpurityDataSet):
     def data_bounds(self) -> Sequence[Tuple[float, float]]:
         return self._data_bounds
 
-    def models(self, interpolate: bool, tinter: float) -> Iterable[llt.SimpleModel]:
-        return (llt.SimpleModel(signal, interpolate, tinter) for signal in self.signals)
-
-    def get_sindex(self, i):
-        """ Obtains the ith component of each signal
-
-        i : integer
-        """
-        return self.signals[:, i]
+    def model(self, signal, interpolate: bool, tinter: float) -> stl.STLModel:
+        return llt.SimpleModel(signal, interpolate, tinter)
 
     def as_list(self):
         """ Returns the constructor arguments
@@ -142,7 +137,7 @@ class DTree(Tree[TreeData, "DTree"]):
         signal : an m by n matrix
                  Last row should be the sampling times
         """
-        if stl.satisfies(self.primitive, llt.SimpleModel(signal, interpolate, tinter)):
+        if self.primitive.satisfies(self.traces.model(signal, interpolate, tinter)):
             if self.left is None:
                 return 1
             else:
@@ -421,8 +416,8 @@ class LLTInf(object):
 
         # Classify using best primitive and split into groups
         prim_rho = [
-            stl.robustness(primitive, llt.SimpleModel(s, self.interpolate, self.tinter))
-            for s in traces.signals
+            primitive.score(model)
+            for model in traces.models(self.interpolate, self.tinter)
         ]
         if rho is None:
             rho = [np.inf for i in traces.labels]
@@ -444,7 +439,7 @@ class LLTInf(object):
             )
         ):
             sat_, unsat_ = unsat_, sat_
-            tree.primitive = stl.STLNot(tree.primitive)
+            tree.primitive.negate()
 
         # No further classification possible
         if len(sat_) == 0 or len(unsat_) == 0:

@@ -9,7 +9,7 @@ from __future__ import division, absolute_import, print_function
 
 import math
 import logging
-from typing import Tuple, Sequence, Iterable
+from typing import Tuple, Sequence, Iterable, Any, Generic, TypeVar
 from abc import ABC, abstractmethod
 
 import numpy as np  # type: ignore
@@ -21,8 +21,10 @@ from templogic.util import split_groups
 
 logger = logging.getLogger(__name__)
 
+U = TypeVar("U")
 
-class ImpurityDataSet(ABC):
+
+class ImpurityDataSet(ABC, Generic[U]):
     @property
     @abstractmethod
     def time_bounds(self) -> Tuple[float, float]:
@@ -33,14 +35,21 @@ class ImpurityDataSet(ABC):
     def data_bounds(self) -> Sequence[Tuple[float, float]]:
         pass
 
-    @abstractmethod
     def models(self, interpolate: bool, tinter: float) -> Iterable[STLModel]:
+        return [self.model(signal, interpolate, tinter) for signal in self.signals]
+
+    @abstractmethod
+    def model(self, signal: Any, interpolate: bool, tinter: float) -> STLModel:
         pass
 
     @property
     @abstractmethod
     def labels(self) -> Sequence[int]:
-        # Consider if needed
+        pass
+
+    @property
+    @abstractmethod
+    def signals(self) -> Sequence[U]:
         pass
 
     @abstractmethod
