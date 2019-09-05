@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import Iterable, Sequence, Tuple, TypeVar
+from typing import Iterable, Sequence, Tuple, TypeVar, cast
 
 from templogic import stlmilp as stl, tssl
 from templogic.stlmilp import STLAlways, STLAnd, STLEventually, STLNext, STLNot, STLOr
@@ -73,13 +73,19 @@ class TSSLTermSignal(stl.Signal[tssl.TSSLModel, int]):
         )
         self.term = term
 
-        def __str__(self):
-            return str(self.term)
+    def negate(self):
+        self.term = tssl.TSSLNot(self.term)
+
+    def __str__(self):
+        return str(self.term)
 
 
 class SpatelSTLPred(stl.STLPred):
     def __init__(self, tssl_term: tssl.TSSLTerm) -> None:
         super().__init__(TSSLTermSignal(tssl_term))
+
+    def negate(self) -> None:
+        cast(TSSLTermSignal, self.signal).negate()
 
 
 def robustness(term: SpatelTerm, model: SpatelModel, t: float = 0) -> float:
