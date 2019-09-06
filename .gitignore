@@ -15,3 +15,4 @@ doc/source/femformal/stubs
 doc/build
 out.profile
 *.pdf
+/.noseids
