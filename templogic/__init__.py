@@ -16,7 +16,7 @@ if "nose" in sys.modules.keys() and FOCUSED:
             "disable_existing_loggers": False,
             "formatters": {
                 "debug_formatter": {
-                    "format": "%(levelname).1s %(module)s:%(lineno)d:%(funcName)s: %(message)s"
+                    "format": "%(levelname).1s %(module)s(%(lineno)d):%(funcName)s %(message)s"
                 }
             },
             "handlers": {
