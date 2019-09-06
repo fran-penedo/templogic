@@ -62,3 +62,8 @@ class TestInference(unittest.TestCase):
             classifier = inference.TSSLInference()
             classifier.build_classifier(dataset, depth=1)
             self.assertEqual(str(classifier.get_tssl_formula()), formulas[i])
+
+
+class TestSpiralDataSet(unittest.TestCase):
+    def setUp(self) -> None:
+        pass

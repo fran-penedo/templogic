@@ -176,8 +176,12 @@ def _create_dataset(data: np.ndarray):
 
 # Test images
 def build_spirals(shape: Tuple[int, int] = (16, 16), maxspirals: int = 5) -> np.ndarray:
+    """ Builds an image with `shape` and a random amount of spirals
+
+    The image will contain at least one spiral
+    """
     img = np.random.binomial(1, 0.5, shape)
-    nspirals = np.random.choice(maxspirals + 1)
+    nspirals = 1 + np.random.choice(maxspirals)
     compatible = False
     while not compatible:
         compatible = True
@@ -195,6 +199,16 @@ def build_spirals(shape: Tuple[int, int] = (16, 16), maxspirals: int = 5) -> np.
 
 
 def add_spiral(img, v):
+    """ Adds a spiral to `img` at point `v`
+
+    A spiral any rotation of
+
+    0 0 0 0
+    0 1 1 0
+    0 1 0 0
+    0 0 0 0
+
+    """
     spiral = np.zeros((4, 4))
     spiral[1:-1, 1:-1] = 1
     i = np.random.choice(4)
