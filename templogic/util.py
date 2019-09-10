@@ -2,6 +2,11 @@ from bisect import bisect_right
 import logging
 import copy
 from typing import Callable, Generic, Iterable, List, Optional, Sequence, TypeVar, cast
+import pickle
+from abc import ABC, abstractmethod
+
+import attr
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -128,3 +133,90 @@ def round_t(t: float, times: Optional[Sequence[float]]) -> float:
     else:
         i = bisect_right(times, t) - 1
         return times[i]
+
+
+class Classifier(ABC):
+    @abstractmethod
+    def classify(self, trace: np.ndarray) -> int:
+        pass
+
+
+@attr.s(auto_attribs=True)
+class CVResult:
+    miss_mean: float
+    miss_std: float
+    missrates: Sequence[float]
+    classifiers: Sequence[Classifier]
+
+
+def cross_validation(
+    data: np.ndarray,
+    labels: Iterable[int],
+    learn: Callable[[np.ndarray, Iterable[int]], Classifier],
+    k: int = 10,
+    save: Optional[str] = None,
+    disp: bool = False,
+) -> CVResult:
+    """ Performs a k-fold cross validation test.
+
+    data : a list of labeled traces
+           The input data for the cross validation test. It must be a list of
+           pairs [trace, label], where the trace is an m by n matrix with the
+           last row being the sampling times and the label is 1 or -1.
+    learn : a function from data to a classifier
+            The learning function. Must accept as a parameter a subset of the
+            data and return a classifier. A classifier must be an object with
+            a method classify(trace), where trace is defined as in the data
+            argument.
+    k : integer, optional, defaults to 10
+        The number of folds
+    save : string, optional
+           If specified, the name of a file to save the permutation used to
+           split the data.
+    disp : boolean, optional, defaults to False
+           Toggles the output of debugging information
+
+    """
+    if k > len(data):
+        raise AttributeError("Fold number should not exceed size of dataset")
+    p = np.random.permutation(len(data))
+    if save is not None:
+        with open(save, "wb") as out:
+            pickle.dump(p.tolist(), out)
+
+    perm = list(zip(np.array(data)[p], np.array(labels)[p]))
+    n = len(data) // k
+    folds = [perm[i * n : (i + 1) * n] for i in range(k)]
+    if len(data) % k != 0:
+        folds[-1] = np.append(folds[-1], perm[k * n :], axis=0)
+
+    missrates = []
+    classifiers = []
+    for i in range(k):
+        lfolds = folds[:i] + folds[(i + 1) :]
+        ldata, llabels = list(zip(*[x for fold in lfolds for x in fold]))
+        classifier = learn(ldata, llabels)
+        fold_data, fold_labels = list(zip(*folds[i]))
+        missrates.append(missrate(fold_data, fold_labels, classifier))
+        classifiers.append(classifier)
+        if disp:
+            print(f"Cross validation step {i}")
+            print(f"Miss: {missrates[i]}")
+            print(str(classifier))
+
+    return CVResult(np.mean(missrates), np.std(missrates), missrates, classifiers)
+
+
+def missrate(data: np.ndarray, labels: Iterable[int], classifier: Classifier) -> float:
+    """ Obtains the missrate of a classifier on a given validation set.
+
+    validate : a list of labeled traces
+               A validation set. See cross_validation for a description of the
+               format
+    classifier : an object with a classify method
+                 The classifier. See cross_validation for a description
+
+    """
+    labels_ = np.array(labels)
+    test = np.array([classifier.classify(x) for x in data])
+    return np.count_nonzero(labels_ - test) / float(len(labels_))
