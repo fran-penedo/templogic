@@ -175,25 +175,33 @@ def _create_dataset(data: np.ndarray):
 
 
 # Test images
-def build_spirals(shape: Tuple[int, int] = (16, 16), maxspirals: int = 5) -> np.ndarray:
+def build_spirals(
+    shape: Tuple[int, int] = (16, 16), maxspirals: int = 5, spiralsize: int = 2
+) -> np.ndarray:
     """ Builds an image with `shape` and a random amount of spirals
 
-    The image will contain at least one spiral
+    The image will contain at least one spiral.
+    Spiral diameter is controlled by `spiralsize`
     """
+    if spiralsize == 2:
+        _add_spiral = add_spiral
+    elif spiralsize == 3:
+        _add_spiral = add_spiral_3
+    size = spiralsize + 2
     img = np.random.binomial(1, 0.5, shape)
     nspirals = 1 + np.random.choice(maxspirals)
     compatible = False
     while not compatible:
         compatible = True
-        xs = np.random.choice(shape[0] - 4, size=nspirals)
-        ys = np.random.choice(shape[1] - 4, size=nspirals)
+        xs = np.random.choice(shape[0] - size, size=nspirals)
+        ys = np.random.choice(shape[1] - size, size=nspirals)
         vs = list(zip(xs, ys))
         for i, v in enumerate(vs):
             for v2 in vs[i + 1 :]:
-                if collision(v, v2):
+                if collision(v, v2, size):
                     compatible = False
                     break
-            add_spiral(img, v)
+            _add_spiral(img, v)
 
     return img.reshape(shape + (1,))
 
@@ -216,10 +224,33 @@ def add_spiral(img, v):
     img[v[0] : v[0] + 4, v[1] : v[1] + 4] = spiral
 
 
-def collision(v, v2):
+def add_spiral_3(img, v):
+    """ Adds a 3x3 spiral to `img` at point `v`
+
+    A 3x3 spiral is any rotation of
+
+    0 0 0 0 0
+    0 1 1 1 0
+    0 1 1 1 0
+    0 0 1 1 0
+    0 0 0 0 0
+
+    """
+    spiral = np.zeros((5, 5))
+    spiral[1:-1, 1:-1] = 1
+    i = np.random.choice(4)
+    spiral[1 + 2 * (i // 2), 1 + 2 * (i % 2)] = 0
+    img[v[0] : v[0] + 5, v[1] : v[1] + 5] = spiral
+
+
+def collision(v, v2, size=4):
+    """ Detects a collision between two squares of the same size
+
+    """
+
     def _collision_oneside(a, b):
         def _in(i):
-            return a[i] >= b[i] and a[i] <= b[i] + 3
+            return a[i] >= b[i] and a[i] <= b[i] + size - 1
 
         return _in(0) and _in(1)
 

@@ -1,9 +1,10 @@
 import itertools as it
+from functools import partial
 import logging
 import math
 from typing import Sequence, Callable, TypeVar, List, Type, Tuple, Optional
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from templogic.util import Tree
 
@@ -70,7 +71,9 @@ class QuadTree(Tree[T, "QuadTree"]):
         return cls(xx[0], trees[0])
 
     @classmethod
-    def from_matrix(cls, m: Sequence, f: Callable[[Sequence[T]], T]) -> "QuadTree[T]":
+    def from_matrix(
+        cls, m: Sequence, f: Callable[[Sequence[T]], T] = partial(np.mean, axis=0)
+    ) -> "QuadTree[T]":
         mm = np.array(m)
         depth = int(math.log(mm.shape[0], 2))
         if len(mm.shape) < 2 or mm.shape[0] != mm.shape[1] or 2 ** depth != mm.shape[0]:

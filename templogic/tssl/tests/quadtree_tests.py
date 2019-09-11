@@ -9,6 +9,7 @@ import numpy.testing as npt  # type: ignore
 
 from .. import quadtree
 
+logger = logging.getLogger(__name__)
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 FOCUSED = ":" in sys.argv[-1]
 
@@ -60,3 +61,10 @@ class TestQuadTree(unittest.TestCase):
         res = np.array([1.5, 0, 1, 2, 3, 5.5, 4, 5, 6, 7])
         tree = quadtree.QuadTree.from_matrix(m, partial(np.mean, axis=0))
         npt.assert_array_equal(tree.flatten(), res)
+        npt.assert_array_equal(tree.data, [1.5, 5.5])
+
+    def test_from_matrix_1D(self) -> None:
+        m = np.array([[[0], [1]], [[2], [3]]])
+        tree = quadtree.QuadTree.from_matrix(m, partial(np.mean, axis=0))
+        npt.assert_equal(len(tree.data), 1)
+        npt.assert_array_equal(tree.data, [1.5])
