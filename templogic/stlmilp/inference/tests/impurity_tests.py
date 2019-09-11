@@ -3,7 +3,7 @@ from __future__ import division, absolute_import, print_function
 import logging
 import unittest
 
-import numpy as np  # type: ignore
+import numpy as np
 import numpy.testing as npt  # type: ignore
 
 from .. import inference, impurity, llt
@@ -28,14 +28,14 @@ class TestSTL(unittest.TestCase):
 
         npt.assert_almost_equal(
             impurity.ext_inf_gain(
-                [1, 4, 0, 4.5], impurity.DEArgs(primitive_good, models, rho, traces)
+                (1, 4, 0, 4.5), impurity.DEArgs(primitive_good, models, rho, traces)
             ),
             -0.6869615765973234,
         )
 
         npt.assert_almost_equal(
             impurity.ext_inf_gain(
-                [1, 4, 0, 4.5], impurity.DEArgs(primitive_bad, models, rho, traces)
+                (1, 4, 0, 4.5), impurity.DEArgs(primitive_bad, models, rho, traces)
             ),
             0.0,
         )

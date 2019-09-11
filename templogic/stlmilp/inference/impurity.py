@@ -12,7 +12,7 @@ import logging
 from typing import Tuple, Sequence, Iterable, Any, Generic, TypeVar
 from abc import ABC, abstractmethod
 
-import numpy as np  # type: ignore
+import numpy as np
 import scipy.optimize as opt  # type: ignore
 
 from .llt import Primitive

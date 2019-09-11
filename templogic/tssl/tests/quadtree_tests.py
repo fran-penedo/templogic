@@ -4,7 +4,7 @@ import os
 import sys
 from functools import partial
 
-import numpy as np  # type: ignore
+import numpy as np
 import numpy.testing as npt  # type: ignore
 
 from .. import quadtree

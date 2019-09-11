@@ -145,7 +145,7 @@ def _stl_next(
 def _stl_always_eventually(
     m: gModel,
     label: str,
-    f: Union[stl.STLEventually, stl.Always],
+    f: Union[stl.STLEventually, stl.STLAlways],
     t: float,
     op: str,
     start_robustness_tree: stl.RobustnessTree = None,
@@ -161,7 +161,7 @@ def _stl_always_eventually(
         if start_robustness_tree is not None:
             tree = start_robustness_tree.children[i - b1]
         else:
-            tree = None  # type: ignore
+            tree = None
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0], t + i, tree)
         if x is not None:
             xx.append(x)

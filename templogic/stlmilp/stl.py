@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import copy
 from typing import Tuple, TypeVar, Iterable, Callable, Sequence, Generic, Union
 
-import numpy as np  # type: ignore
+import numpy as np
 from pyparsing import (  # type: ignore
     Word,
     Suppress,

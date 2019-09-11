@@ -21,7 +21,9 @@ class _Model(stl.STLModel):
 class TestSTL(unittest.TestCase):
     def setUp(self) -> None:
         self.labels = [lambda x: x]
-        self.signal: stl.Signal[float] = stl.Signal(self.labels, lambda x: x[0] + 3)
+        self.signal: stl.Signal[float, float] = stl.Signal(
+            self.labels, lambda x: x[0] + 3
+        )
         self.f = stl.STLNext(
             stl.STLAlways(
                 bounds=(3, 5),

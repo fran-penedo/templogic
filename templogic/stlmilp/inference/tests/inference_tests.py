@@ -7,7 +7,7 @@ import os
 import sys
 from typing import cast
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from .. import inference, llt
 
@@ -97,7 +97,3 @@ class TestInference(unittest.TestCase):
         )
 
         traces = inference.Traces([x], [-1])
-
-        import ipdb
-
-        ipdb.set_trace()

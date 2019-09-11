@@ -3,7 +3,7 @@ import unittest
 import os
 import sys
 
-import numpy as np  # type: ignore
+import numpy as np
 import numpy.testing as npt  # type: ignore
 
 from .. import tssl, quadtree

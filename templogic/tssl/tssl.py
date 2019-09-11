@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import Tuple, TypeVar, Iterable, Callable, Sequence, Union
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from .quadtree import QuadTree
 

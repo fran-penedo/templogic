@@ -11,7 +11,7 @@ from enum import Enum
 import operator
 from typing import Iterable, Sequence, Tuple, Union, cast, TypeVar, Generic, Optional
 
-import numpy as np  # type: ignore
+import numpy as np
 from pyparsing import Word, alphas, Suppress, nums, Literal, MatchFirst  # type: ignore
 
 from .. import stl
@@ -102,7 +102,7 @@ class LLTSignal(stl.Signal):
         """
         super().__init__(self._labels, self._f)
         self.index = index
-        self.op = op  # type: ignore # mypy is getting confused with setter
+        self.op = op
         self.pi = pi
 
     def _labels(self, t):

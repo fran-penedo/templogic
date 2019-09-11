@@ -3,7 +3,7 @@ from __future__ import division, absolute_import, print_function
 import unittest
 import pprint
 
-import numpy as np  # type: ignore
+import numpy as np
 import numpy.testing as npt  # type: ignore
 
 import logging

@@ -10,7 +10,7 @@ from multiprocessing.pool import Pool
 import signal
 from typing import Sequence, Tuple, Optional, MutableSequence
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from .. import stl
 from . import impurity, llt

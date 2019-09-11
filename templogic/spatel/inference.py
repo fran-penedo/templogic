@@ -1,7 +1,7 @@
 from typing import Tuple, Sequence, Optional, Union, TypeVar
 import copy
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from templogic import tssl, stlmilp as stl
 from templogic.util import round_t
@@ -33,15 +33,6 @@ class SpatelTraces(stl.inference.Traces):
         else:
             self._signals.extend(signals)
             self._labels = np.hstack([self._labels, np.array(labels)])
-        # mins, maxs = np.amin(signals, (2, 0)), np.amax(signals, (2, 0))
-        # mint, maxt = self.time_bounds
-        # self._time_bounds = (min(mint, mins[-1]), max(maxt, maxs[-1]))
-        # if len(self._data_bounds) == 0:
-        #     self._data_bounds = [(np.inf, -np.inf) for i in range(len(mins) - 1)]
-        # self._data_bounds = [
-        #     (min(cur[0], mins[i]), max(cur[1], maxs[i]))
-        #     for i, cur in enumerate(self._data_bounds)
-        # ]
         mint, maxt = self.time_bounds
         ts = [t for signal in signals for t in list(zip(*signal))[0]]
         self._time_bounds = (min(mint, min(ts)), max(maxt, max(ts)))

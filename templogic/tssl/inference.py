@@ -1,7 +1,7 @@
 import logging
 from typing import Iterable, Callable, Tuple, Sequence
 
-import numpy as np  # type: ignore
+import numpy as np
 
 ROOT_LOGGER_LEVEL = logging.getLogger().getEffectiveLevel()
 import weka  # type: ignore

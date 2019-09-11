@@ -1,6 +1,6 @@
 from ..validate import *
 import numpy as np
-import numpy.testing as test
+import numpy.testing as test  # type: ignore
 
 
 def missrate_test():
