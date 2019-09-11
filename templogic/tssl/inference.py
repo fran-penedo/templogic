@@ -3,12 +3,17 @@ from typing import Iterable, Callable, Tuple, Sequence
 
 import numpy as np
 
-ROOT_LOGGER_LEVEL = logging.getLogger().getEffectiveLevel()
+_HANDLERS = list(logging.getLogger().handlers)
+_LEVEL = logging.getLogger().getEffectiveLevel()
+
 import weka  # type: ignore
 from weka.classifiers import Classifier  # type: ignore
 import javabridge  # type: ignore
 
-logging.getLogger().setLevel(ROOT_LOGGER_LEVEL)
+# weka executes logging.basicConfig, which we revert here
+# Possibly overkill if basicConfig does nothing when there is a handler already
+logging.getLogger().setLevel(_LEVEL)
+logging.getLogger().handlers = _HANDLERS
 
 from . import tssl, quadtree
 
