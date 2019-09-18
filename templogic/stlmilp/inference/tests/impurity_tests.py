@@ -104,7 +104,7 @@ class TestSTL(unittest.TestCase):
             [1, -1, -1],
         )
         rho = np.array([1.0000000e00, 3.3345704e-09, 1.0000000e00])
-        prims = llt.make_llt_primitives(traces.signals)
+        prims = llt.make_llt_primitives(traces.signals, traces.labels)
         # primitive_bad = llt.LLTFormula(False, 1, llt.LE)
 
         opts = [

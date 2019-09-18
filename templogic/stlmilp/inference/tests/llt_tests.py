@@ -19,7 +19,7 @@ class TestLLT(unittest.TestCase):
             [[1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]],
             [[1, 2, 3, 4], [1, 2, 3, 5], [1, 2, 3, 4]],
         ]
-        prims = list(llt.make_llt_primitives(signals))
+        prims = list(llt.make_llt_primitives(signals, []))
         self.assertEqual(len(prims), 4)
         prim = prims[0]
         prim.set_llt_pars((1, 2, 3, 4))

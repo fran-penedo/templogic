@@ -430,7 +430,9 @@ class SimpleModel(stl.STLModel):
             return self._signal[name][tindex]
 
 
-def make_llt_primitives(signals: Sequence[SignalType]) -> Iterable[LLTFormula]:
+def make_llt_primitives(
+    signals: Sequence[SignalType], labels: Sequence[int]
+) -> Iterable[LLTFormula]:
     """Obtains the depth 2 primitives associated with the structure of the signals.
 
     signals : m by n matrix

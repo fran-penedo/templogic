@@ -395,7 +395,7 @@ class LLTInf(object):
             return None
 
         # Find primitive using impurity measure
-        primitives = self.primitive_factory(traces.signals)
+        primitives = self.primitive_factory(traces.signals, traces.labels)
         if override_impurity is None:
             impurity = self.optimize_impurity
         else:
