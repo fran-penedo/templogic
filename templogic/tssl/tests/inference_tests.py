@@ -63,7 +63,7 @@ class TestInference(unittest.TestCase):
         for i, labels in enumerate([self.labels1, self.labels2]):
             dataset = inference.build_dataset(self.imgs, labels)
             classifier = inference.TSSLInference()
-            classifier.build_classifier(dataset, depth=1)
+            classifier.build_classifier(dataset)
             self.assertEqual(str(classifier.get_tssl_formula()), formulas[i])
 
 
@@ -82,7 +82,7 @@ class TestSpiralDataSet(unittest.TestCase):
         imgs = np.vstack([self.imgs[:100], self.imgs[-100:]])
         labels = np.append(self.labels[:100], self.labels[-100:])
         dataset = inference.build_dataset(imgs, labels)
-        classifier.build_classifier(dataset, depth=self.depth, valid_class="1")
+        classifier.build_classifier(dataset, valid_class="1")
         logger.debug(str(classifier.get_tssl_formula()))
         self.assertEqual(str(classifier.get_tssl_formula()), formula)
 
@@ -112,7 +112,7 @@ class TestSpiralDataSet(unittest.TestCase):
             data: np.ndarray, labels: Iterable[int]
         ) -> util.Classifier:
             dataset = inference.build_dataset(data, labels)
-            classifier.build_classifier(dataset, depth=self.depth, valid_class="1")
+            classifier.build_classifier(dataset, valid_class="1")
             return SampleClassifier(classifier.get_tssl_formula())
 
         cvresult = util.cross_validation(self.imgs, self.labels, build_classifier, k=10)

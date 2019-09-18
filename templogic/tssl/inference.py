@@ -1,7 +1,9 @@
 import logging
 from typing import Iterable, Callable, Tuple, Sequence
+from functools import partial
 
 import numpy as np
+import attr
 
 _HANDLERS = list(logging.getLogger().handlers)
 _LEVEL = logging.getLogger().getEffectiveLevel()
@@ -28,6 +30,18 @@ def start_jvm() -> None:
 
 def stop_jvm() -> None:
     weka.core.jvm.stop()
+
+
+@attr.s(auto_attribs=True)
+class Instances(object):
+    instances: weka.core.dataset.Instances
+    depth: int
+
+    def __getattr__(self, attr):
+        return getattr(self.instances, attr)
+
+    def __iter__(self):
+        return iter(self.instances)
 
 
 class TSSLInference(Classifier):
@@ -64,12 +78,12 @@ class TSSLInference(Classifier):
         else:
             return self._form
 
-    def build_classifier(self, data, depth: int, valid_class: str = "0") -> None:
+    def build_classifier(self, data: Instances, valid_class: str = "0") -> None:
         super().build_classifier(data)
         logger.debug("Built JRip classifier")
         logger.debug(self)
         self._form = parse_rules(
-            self.jwrapper.getRuleset(), depth, self.class_attribute, valid_class
+            self.jwrapper.getRuleset(), data.depth, self.class_attribute, valid_class
         )
 
     @property
@@ -140,24 +154,11 @@ def parse_rules(rules, depth: int, class_attr, valid_class: str) -> tssl.TSSLTer
 def build_dataset(
     imgs: np.ndarray,
     labels: Iterable,
-    fun: Callable[[Sequence[float]], float] = np.mean,
-):
-    """TODO: Docstring for build_dataset.
-
-    Parameters
-    ----------
-    imgs : TODO
-    labels : TODO
-    fun : TODO
-
-    Returns
-    -------
-    TODO
-
-    """
+    fun: Callable[[Sequence[float]], float] = partial(np.mean, axis=0),
+) -> Instances:
     qts = [quadtree.QuadTree.from_matrix(img, fun) for img in imgs]
     data = [qt.flatten() + [label] for qt, label in zip(qts, labels)]
-    dataset = _create_dataset(data)
+    dataset = _create_dataset(data, qts[0].depth())
     for i in range(dataset.num_attributes - 1):
         dataset.jwrapper.renameAttribute(i, _att_label(dataset.attribute(i).name))
 
@@ -169,14 +170,14 @@ def _att_label(label: str) -> str:
     return "x{}".format(str(index))
 
 
-def _create_dataset(data: np.ndarray):
+def _create_dataset(data: np.ndarray, depth: int) -> Instances:
     dataset = weka.core.dataset.create_instances_from_lists(data)
     dataset.class_is_last()
     filt = weka.filters.Filter(
         "weka.filters.unsupervised.attribute.NumericToNominal", options=["-R", "last"]
     )
     filt.inputformat(dataset)
-    return filt.filter(dataset)
+    return Instances(filt.filter(dataset), depth)
 
 
 # Test images
