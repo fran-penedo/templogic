@@ -44,6 +44,22 @@ class QuadTree(Tree[T, "QuadTree"]):
         else:
             return list(it.chain(*zip(*flat)))
 
+    def to_matrix(self) -> Sequence:
+        data = np.array(self.data)
+        if self.isleaf():
+            return data
+        depth = self.depth()
+        side = 2 ** depth
+        shape = (side, side, len(data))
+        matrix = np.zeros(shape)
+        subs = [c.to_matrix() for c in self.children]
+        for idx, sub in enumerate(subs):
+            i, j = idx // 2, idx % 2
+            matrix[
+                i * side // 2 : (i + 1) * side // 2, j * side // 2 : (j + 1) * side // 2
+            ] = sub
+        return matrix
+
     def isleaf(self) -> bool:
         return self.children is None or len(self.children) == 0
 

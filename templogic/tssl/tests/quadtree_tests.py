@@ -68,3 +68,13 @@ class TestQuadTree(unittest.TestCase):
         tree = quadtree.QuadTree.from_matrix(m, partial(np.mean, axis=0))
         npt.assert_equal(len(tree.data), 1)
         npt.assert_array_equal(tree.data, [1.5])
+
+    def test_to_matrix(self) -> None:
+        m = np.array([[[0, 4], [1, 5]], [[2, 6], [3, 7]]])
+        tree = quadtree.QuadTree.from_matrix(m, partial(np.mean, axis=0))
+        npt.assert_array_equal(tree.to_matrix(), m)
+
+    def test_to_matrix_1D(self) -> None:
+        m = np.array([[[0], [1]], [[2], [3]]])
+        tree = quadtree.QuadTree.from_matrix(m, partial(np.mean, axis=0))
+        npt.assert_array_equal(tree.to_matrix(), m)
