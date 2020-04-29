@@ -68,10 +68,14 @@ class SpatelModel(stl.STLModel[int, tssl.TSSLModel]):
 
 class TSSLTermSignal(stl.Signal[tssl.TSSLModel, int]):
     def __init__(self, term: tssl.TSSLTerm) -> None:
-        super().__init__(
-            lambda t: (int(t),), lambda vs: tssl.robustness(self.term, vs[0])
-        )
+        super().__init__(self.tssl_labels, self.eval)
         self.term = term
+
+    def tssl_labels(self, t: float) -> Tuple[int]:
+        return (int(t),)
+
+    def eval(self, vs: Sequence[tssl.TSSLModel]) -> float:
+        return tssl.robustness(self.term, vs[0])
 
     def negate(self):
         self.term = tssl.TSSLNot(self.term)

@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, Callable, Tuple, Sequence
+from typing import Iterable, Callable, Tuple, Sequence, Optional
 from functools import partial
 
 import numpy as np
@@ -25,7 +25,7 @@ IRIS = "/usr/share/data/weka/iris.arff"
 
 
 def start_jvm() -> None:
-    weka.core.jvm.start()
+    weka.core.jvm.start(max_heap_size="32m")
 
 
 def stop_jvm() -> None:
@@ -171,6 +171,7 @@ def _att_label(label: str) -> str:
 
 
 def _create_dataset(data: np.ndarray, depth: int) -> Instances:
+    weka.core.jvm.start()
     dataset = weka.core.dataset.create_instances_from_lists(data)
     dataset.class_is_last()
     filt = weka.filters.Filter(
@@ -189,10 +190,6 @@ def build_spirals(
     The image will contain at least one spiral.
     Spiral diameter is controlled by `spiralsize`
     """
-    if spiralsize == 2:
-        _add_spiral = add_spiral
-    elif spiralsize == 3:
-        _add_spiral = add_spiral_3
     size = spiralsize + 2
     img = np.random.binomial(1, 0.5, shape)
     nspirals = 1 + np.random.choice(maxspirals)
@@ -202,17 +199,64 @@ def build_spirals(
         xs = np.random.choice(shape[0] - size, size=nspirals)
         ys = np.random.choice(shape[1] - size, size=nspirals)
         vs = list(zip(xs, ys))
-        for i, v in enumerate(vs):
-            for v2 in vs[i + 1 :]:
-                if collision(v, v2, size):
-                    compatible = False
-                    break
-            _add_spiral(img, v)
+        try:
+            add_spirals(img, vs, spiralsize)
+        except IncompatibleSpiralsException:
+            compatible = False
 
     return img.reshape(shape + (1,))
 
 
-def add_spiral(img, v):
+def build_rotating_spirals(
+    shape: Tuple[int, int, int] = (4, 16, 16), maxspirals: int = 5, spiralsize: int = 2
+) -> np.ndarray:
+    size = spiralsize + 2
+    img = np.random.binomial(1, 0.5, shape)
+    nspirals = 1 + np.random.choice(maxspirals)
+    compatible = False
+    npictures, xshape, yshape = shape
+    while not compatible:
+        compatible = True
+        xs = np.random.choice(xshape - size, size=nspirals)
+        ys = np.random.choice(yshape - size, size=nspirals)
+        vs = list(zip(xs, ys))
+        rots = np.random.choice(4, nspirals)
+        try:
+            for i in range(npictures):
+                add_spirals(img[i], vs, spiralsize, rots)
+                # Rotation magic, just for fun
+                rots = (1 + (rots % 2) * 2 - rots // 2) % 4
+        except IncompatibleSpiralsException:
+            compatible = False
+
+    return img.reshape(shape + (1,))
+
+
+class IncompatibleSpiralsException(Exception):
+    pass
+
+
+def add_spirals(
+    img: np.ndarray,
+    vs: Sequence[Tuple[int, int]],
+    spiralsize: int,
+    rots: Optional[Sequence[int]] = None,
+) -> np.ndarray:
+    if spiralsize == 2:
+        _add_spiral = add_spiral
+    elif spiralsize == 3:
+        _add_spiral = add_spiral_3
+    size = spiralsize + 2
+    rots = rots if rots is not None else np.random.choice(4, len(vs))
+    for i, v in enumerate(vs):
+        for v2 in vs[i + 1 :]:
+            if collision(v, v2, size):
+                raise IncompatibleSpiralsException()
+    for v in vs:
+        _add_spiral(img, v)
+
+
+def add_spiral(img, v, rot=None):
     """ Adds a spiral to `img` at point `v`
 
     A spiral any rotation of
@@ -225,12 +269,12 @@ def add_spiral(img, v):
     """
     spiral = np.zeros((4, 4))
     spiral[1:-1, 1:-1] = 1
-    i = np.random.choice(4)
+    i = rot if rot is not None else np.random.choice(4)
     spiral[1 + (i // 2), 1 + (i % 2)] = 0
     img[v[0] : v[0] + 4, v[1] : v[1] + 4] = spiral
 
 
-def add_spiral_3(img, v):
+def add_spiral_3(img, v, rot=None):
     """ Adds a 3x3 spiral to `img` at point `v`
 
     A 3x3 spiral is any rotation of
@@ -244,7 +288,7 @@ def add_spiral_3(img, v):
     """
     spiral = np.zeros((5, 5))
     spiral[1:-1, 1:-1] = 1
-    i = np.random.choice(4)
+    i = rot if rot is not None else np.random.choice(4)
     spiral[1 + 2 * (i // 2), 1 + 2 * (i % 2)] = 0
     img[v[0] : v[0] + 5, v[1] : v[1] + 5] = spiral
 

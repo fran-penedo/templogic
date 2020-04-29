@@ -7,9 +7,10 @@ Author: Francisco Penedo (franp@bu.edu)
 """
 from __future__ import division, absolute_import, print_function
 
+import attr
 import math
 import logging
-from typing import Tuple, Sequence, Iterable, Any, Generic, TypeVar
+from typing import Tuple, Sequence, Iterable, Any, Generic, TypeVar, Optional, List
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -97,7 +98,7 @@ def optimize_impurity(
     # )
     bounds = primitive.parameter_bounds(traces.time_bounds, traces.data_bounds)
     models = list(traces.models(interpolate, tinter))
-    args = DEArgs(primitive, models, rho, traces, times)
+    args = DEArgs(primitive, models, rho, traces.time_bounds, traces.labels, times)
 
     # Optimize over t0, v1, v3, pi, where v1 / maxt = t1 - t0 / maxt - t0 and
     # v3 / maxt = t3 / maxt - t1
@@ -110,15 +111,14 @@ def optimize_impurity(
     return primitive, res.fun
 
 
+@attr.s(auto_attribs=True, slots=True)
 class DEArgs(object):
-    def __init__(
-        self, primitive: Primitive, models, rho, traces: ImpurityDataSet, times=None
-    ):
-        self.primitive = primitive
-        self.models = models
-        self.rho = rho
-        self.traces = traces
-        self.times = times
+    primitive: Primitive
+    models: Sequence
+    rho: List[float]
+    time_bounds: Tuple[float, float]
+    labels: Sequence[int]
+    times: Optional[Sequence[float]] = None
 
 
 def inf_gain(theta: Tuple, *args: DEArgs) -> float:
@@ -136,10 +136,11 @@ def inf_gain(theta: Tuple, *args: DEArgs) -> float:
     models = l_args.models
     # May be None, TODO check. Can't do it up in the stack
     prev_rho = l_args.rho
-    traces = l_args.traces
+    time_bounds = l_args.time_bounds
+    labels = l_args.labels
     times = l_args.times
 
-    primitive.set_pars(theta, traces.time_bounds, times)
+    primitive.set_pars(theta, time_bounds, times)
 
     rho = [primitive.score(model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
@@ -151,7 +152,7 @@ def inf_gain(theta: Tuple, *args: DEArgs) -> float:
 
     if prev_rho is not None:
         lrho.append(prev_rho)
-    rho_labels = list(zip(np.amin(lrho, 0), traces.labels))
+    rho_labels = list(zip(np.amin(lrho, 0), labels))
     sat, unsat = split_groups(rho_labels, lambda x: x[0] >= 0)
 
     # # compute IG
@@ -199,14 +200,13 @@ def ext_inf_gain(theta: Tuple, *args: DEArgs):
     models = l_args.models
     # May be None, TODO check. Can't do it up in the stack
     prev_rho = l_args.rho
-    traces = l_args.traces
     times = l_args.times
 
     # if theta[1] < theta[0] or theta[1] + theta[2] > maxt:
     #     print 'bad'
     #     return np.inf
 
-    primitive.set_pars(theta, traces.time_bounds, times)
+    primitive.set_pars(theta, l_args.time_bounds, times)
 
     rho = [primitive.score(model) for model in models]
     rho = [0.0 if np.isclose(0.0, r, atol=1e-5) else r for r in rho]
@@ -218,7 +218,7 @@ def ext_inf_gain(theta: Tuple, *args: DEArgs):
 
     if prev_rho is not None:
         lrho.append(prev_rho)
-    rho_labels = list(zip(np.amin(lrho, 0), traces.labels))
+    rho_labels = list(zip(np.amin(lrho, 0), l_args.labels))
     sat, unsat = split_groups(rho_labels, lambda x: x[0] >= 0)
 
     # compute IG

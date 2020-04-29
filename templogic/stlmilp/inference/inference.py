@@ -85,6 +85,12 @@ class Traces(impurity.ImpurityDataSet):
             for i, cur in enumerate(self._data_bounds)
         ]
 
+    @classmethod
+    def subset(cls, traces, idxs):
+        signals = [traces.signals[i] for i in idxs]
+        labels = [traces.labels[i] for i in idxs]
+        return cls(signals, labels)
+
     def copy(self):
         return Traces(self._signals.copy(), self._labels.copy())
 
@@ -277,6 +283,7 @@ class LLTInf(object):
         optimizer_args=None,
         times=None,
         fallback_impurity=impurity.inf_gain,
+        log=False,
     ):
         self.depth = depth
         self.primitive_factory = primitive_factory
@@ -298,6 +305,7 @@ class LLTInf(object):
         self.tree = None
         self.redo_after_failed = redo_after_failed
         self._partial_add = 0
+        self.log = log
         if "workers" not in self.optimizer_args:
             self.pool = Pool(initializer=_pool_initializer)
 
@@ -380,6 +388,10 @@ class LLTInf(object):
         else:
             raise ValueError("Model not fit")
 
+    def _debug(self, *args):
+        if self.log:
+            logger.debug(*args)
+
     def _lltinf(self, traces, rho, depth, disp=False, override_impurity=None):
         """ Recursive call for the decision tree construction.
 
@@ -395,11 +407,15 @@ class LLTInf(object):
             return None
 
         # Find primitive using impurity measure
+        self._debug(f"Creating primitives at depth {depth} over {len(traces)} traces")
         primitives = self.primitive_factory(traces.signals, traces.labels)
         if override_impurity is None:
             impurity = self.optimize_impurity
         else:
             impurity = override_impurity
+        self._debug(
+            f"Finding best primitive at depth {depth} over {len(traces)} traces"
+        )
         primitive, impurity = _find_best_primitive(
             traces,
             primitives,
@@ -413,6 +429,7 @@ class LLTInf(object):
         )
         if disp:
             print("Best: {} ({})".format(primitive, impurity))
+        self._debug(f"Best primitive found: {primitive} (imp: {impurity})")
 
         # Classify using best primitive and split into groups
         prim_rho = [
@@ -422,30 +439,45 @@ class LLTInf(object):
         if rho is None:
             rho = [np.inf for i in traces.labels]
         tree = DTree(primitive, traces, rho)
-        # [prim_rho, rho, signals, label]
-        sat_, unsat_ = split_groups(
-            list(zip(prim_rho, rho, *traces.as_list())), lambda x: x[0] >= 0
-        )
 
-        pure_wrong = all([t[3] <= 0 for t in sat_]) or all([t[3] >= 0 for t in unsat_])
-        pure_right = all([t[3] >= 0 for t in sat_]) or all([t[3] <= 0 for t in unsat_])
+        def split(prim_rho):
+            sat, unsat = [], []
+            for i, rho in enumerate(prim_rho):
+                if rho >= 0:
+                    sat.append(i)
+                else:
+                    unsat.append(i)
+
+            return sat, unsat
+
+        # [prim_rho, rho, signals, label]
+        # sat_, unsat_ = split_groups(
+        #     list(zip(prim_rho, rho, *traces.as_list())), lambda x: x[0] >= 0
+        # )
+        sat_, unsat_ = split(prim_rho)
+        self._debug(f"Split: {len(sat_)}/{len(unsat_)}")
+
+        # pure_wrong = all([t[3] <= 0 for t in sat_]) or all([t[3] >= 0 for t in unsat_])
+        # pure_right = all([t[3] >= 0 for t in sat_]) or all([t[3] <= 0 for t in unsat_])
+        sat_right = len([i for i in sat_ if traces.labels[i] >= 0])
+        sat_wrong = len(sat_) - sat_right
+        unsat_right = len([i for i in unsat_ if traces.labels[i] <= 0])
+        unsat_wrong = len(unsat_) - unsat_right
         # Switch sat and unsat if labels are wrong. No need to negate prim rho since
         # we use it in absolute value later
-        if pure_wrong or (
-            not pure_right
-            and (
-                len([t for t in sat_ if t[3] >= 0])
-                < len([t for t in unsat_ if t[3] >= 0])
-            )
+        if sat_right * unsat_right == 0 or (
+            sat_wrong * unsat_wrong != 0 and sat_right < unsat_wrong
         ):
+            self._debug(f"Inverting primitive")
+
             sat_, unsat_ = unsat_, sat_
             tree.primitive.negate()
 
         # No further classification possible
         if len(sat_) == 0 or len(unsat_) == 0:
-            logger.debug("No further classification possible")
+            self._debug("No further classification possible")
             if override_impurity is None:
-                logger.debug("Attempting to classify using impurity fallback")
+                self._debug("Attempting to classify using impurity fallback")
                 return self._lltinf(
                     traces,
                     rho,
@@ -457,14 +489,21 @@ class LLTInf(object):
                 return None
 
         # Redo data structures
-        sat, unsat = [
-            (Traces(*group[2:]), np.amin([np.abs(group[0]), group[1]], 0))
-            for group in [list(zip(*sat_)), list(zip(*unsat_))]
+        sat_traces, unsat_traces = [
+            traces.subset(traces, idxs) for idxs in [sat_, unsat_]
         ]
+        sat_rho, unsat_rho = [
+            np.amin([np.abs([prim_rho[i] for i in idxs]), [rho[i] for i in idxs]], 0)
+            for idxs in [sat_, unsat_]
+        ]
+        # sat, unsat = [
+        #     (Traces(*group[2:]), np.amin([np.abs(group[0]), group[1]], 0))
+        #     for group in [list(zip(*sat_)), list(zip(*unsat_))]
+        # ]
 
         # Recursively build the tree
-        tree.left = self._lltinf(sat[0], sat[1], depth - 1, disp=disp)
-        tree.right = self._lltinf(unsat[0], unsat[1], depth - 1, disp=disp)
+        tree.left = self._lltinf(sat_traces, sat_rho, depth - 1, disp=disp)
+        tree.right = self._lltinf(unsat_traces, unsat_rho, depth - 1, disp=disp)
 
         return tree
 
