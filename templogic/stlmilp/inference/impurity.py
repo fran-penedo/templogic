@@ -115,7 +115,7 @@ def optimize_impurity(
 class DEArgs(object):
     primitive: Primitive
     models: Sequence
-    rho: List[float]
+    rho: Optional[List[float]]
     time_bounds: Tuple[float, float]
     labels: Sequence[int]
     times: Optional[Sequence[float]] = None
