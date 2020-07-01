@@ -157,7 +157,9 @@ def build_dataset(
     fun: Callable[[Sequence[float]], float] = partial(np.mean, axis=0),
 ) -> Instances:
     qts = [quadtree.QuadTree.from_matrix(img, fun) for img in imgs]
-    data = [qt.flatten() + [label] for qt, label in zip(qts, labels)]
+    flat_qts = np.array([qt.flatten() for qt in qts]).tolist()
+    labels = np.array(labels).tolist()
+    data = [qt + [label] for qt, label in zip(flat_qts, labels)]
     dataset = _create_dataset(data, qts[0].depth())
     for i in range(dataset.num_attributes - 1):
         dataset.jwrapper.renameAttribute(i, _att_label(dataset.attribute(i).name))
