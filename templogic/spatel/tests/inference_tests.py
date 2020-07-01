@@ -25,6 +25,7 @@ class TestSpiralDataSet(unittest.TestCase):
         self.labels = data["labels"]
         self.depth = data["depth"]
 
+    @unittest.skipUnless(FOCUSED, "Disable SpaTeL inference test")
     def test_inference_single(self) -> None:
         formula = "foobar"
         classifier = inference.SpatelInference(log=True)
