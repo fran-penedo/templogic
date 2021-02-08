@@ -22,11 +22,10 @@ __all__ = ["Traces", "LLTInf"]
 
 
 class Traces(impurity.ImpurityDataSet):
-    """ Class to store a set of labeled signals
-    """
+    """Class to store a set of labeled signals"""
 
     def __init__(self, signals: Sequence = None, labels: Sequence[int] = None) -> None:
-        """ signals : list of m by n matrices
+        """signals : list of m by n matrices
                   Last column should be the sampling times
         labels : list of labels
                  Each label should be either 1 or -1
@@ -57,13 +56,11 @@ class Traces(impurity.ImpurityDataSet):
         return llt.SimpleModel(signal, interpolate, tinter)
 
     def as_list(self):
-        """ Returns the constructor arguments
-        """
+        """Returns the constructor arguments"""
         return [self.signals, self.labels]
 
     def zipped(self):
-        """ Returns the constructor arguments zipped
-        """
+        """Returns the constructor arguments zipped"""
         return zip(*self.as_list())
 
     def add_traces(self, signals, labels) -> None:
@@ -111,14 +108,12 @@ class TreeData(object):
 
 
 class DTree(Tree[TreeData, "DTree"]):
-    """ Decission tree recursive structure
-
-    """
+    """Decission tree recursive structure"""
 
     def __init__(
         self, primitive, traces, robustness=None, left=None, right=None
     ) -> None:
-        """ primitive : a LLTFormula object
+        """primitive : a LLTFormula object
                     The node's primitive
         traces : a Traces object
                  The traces used to build this node
@@ -138,7 +133,7 @@ class DTree(Tree[TreeData, "DTree"]):
         self.right = tree.right
 
     def classify(self, signal, interpolate=False, tinter=None):
-        """ Classifies a signal. Returns a label 1 or -1
+        """Classifies a signal. Returns a label 1 or -1
 
         signal : an m by n matrix
                  Last row should be the sampling times
@@ -155,8 +150,7 @@ class DTree(Tree[TreeData, "DTree"]):
                 return self.right.classify(signal, interpolate, tinter)
 
     def get_formula(self):
-        """ Obtains an STL formula equivalent to this tree
-        """
+        """Obtains an STL formula equivalent to this tree"""
         left = self.primitive
         right = stl.STLNot(self.primitive)
         if self.left is not None:
@@ -240,7 +234,7 @@ def _pool_initializer():
 
 
 class LLTInf(object):
-    """ Obtains a decision tree that classifies the given labeled traces.
+    """Obtains a decision tree that classifies the given labeled traces.
 
     traces : a Traces object
              The set of labeled traces to use as training set
@@ -311,7 +305,7 @@ class LLTInf(object):
 
             def pool_map(func, iterable):
                 try:
-                    return self.pool.map_async(func, iterable).get(timeout=5)
+                    return self.pool.map_async(func, iterable).get(timeout=120)
                 except KeyboardInterrupt:
                     self.pool.terminate()
                     self.pool.join()
@@ -393,7 +387,7 @@ class LLTInf(object):
             logger.debug(*args)
 
     def _lltinf(self, traces, rho, depth, disp=False, override_impurity=None):
-        """ Recursive call for the decision tree construction.
+        """Recursive call for the decision tree construction.
 
         See lltinf for information on similar arguments.
 
@@ -509,14 +503,12 @@ class LLTInf(object):
 
 
 def perfect_stop(lltinf, traces, rho, depth):
-    """ Returns True if all traces are equally labeled.
-    """
+    """Returns True if all traces are equally labeled."""
     return all([l > 0 for l in traces.labels]) or all([l <= 0 for l in traces.labels])
 
 
 def depth_stop(lltinf, traces, rho, depth):
-    """ Returns True if the maximum depth has been reached
-    """
+    """Returns True if the maximum depth has been reached"""
     return depth <= 0
 
 

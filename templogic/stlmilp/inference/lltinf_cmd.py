@@ -1,5 +1,4 @@
-"""
-Module containing a command line interface to the classification system.
+""" Module containing a command line interface to the classification system.
 
 Run with -h option to see the usage help.
 
@@ -14,8 +13,8 @@ from os import path
 import argparse
 import os
 
-from .inference import perfect_stop, depth_stop, lltinf, Traces
-from ..llt import llt_parser, SimpleModel
+from .inference import perfect_stop, depth_stop, LLTInf, Traces
+from .llt import llt_parser, SimpleModel
 from . import validate
 from ..stl import satisfies
 
@@ -85,12 +84,12 @@ def cv_test(matfile, depth=3, out_perm=None, verbose=False):
 
 # Learning wrapper
 def lltinf_learn(depth, disp=False):
-    return lambda data: lltinf(
-        Traces(*zip(*data)),
-        depth=depth,
-        stop_condition=[perfect_stop, depth_stop],
-        disp=disp,
-    )
+    lltinf = LLTInf(depth=depth, log=disp, stop_condition=[perfect_stop, depth_stop])
+
+    def learn(data):
+        return lltinf.fit(Traces(*zip(*data)), disp=disp)
+
+    return learn
 
 
 def learn_formula(matfile, depth, verbose=True):
@@ -193,7 +192,7 @@ def get_path(f):
     return path.join(os.getcwd(), f)
 
 
-if __name__ == "__main__":
+def main():
     args = get_argparser().parse_args()
     if args.action == "learn":
         learn_formula(get_path(args.file), args.depth)
