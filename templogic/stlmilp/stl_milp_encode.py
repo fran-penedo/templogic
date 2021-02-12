@@ -203,17 +203,6 @@ def _stl_eventually(
     return _stl_always_eventually(m, label, f, t, "eve", start_robustness_tree)
 
 
-_ADD_TABLE = {
-    stl.STLPred: _stl_expr,
-    stl.STLNot: _stl_not,
-    stl.STLAnd: _stl_and,
-    stl.STLOr: _stl_or,
-    stl.STLAlways: _stl_always,
-    stl.STLNext: _stl_next,
-    stl.STLEventually: _stl_eventually,
-}
-
-
 def add_stl_constr(
     m: gModel,
     label: str,
@@ -239,9 +228,23 @@ def add_stl_constr(
         the MIP
 
     """
-    return _ADD_TABLE[f.__class__](  # type: ignore
-        m, label, f, t, start_robustness_tree
-    )
+
+    if isinstance(f, stl.STLPred):
+        return _stl_expr(m, label, f, t, start_robustness_tree)
+    elif isinstance(f, stl.STLNot):
+        return _stl_not(m, label, f, t, start_robustness_tree)
+    elif isinstance(f, stl.STLAnd):
+        return _stl_and(m, label, f, t, start_robustness_tree)
+    elif isinstance(f, stl.STLOr):
+        return _stl_or(m, label, f, t, start_robustness_tree)
+    elif isinstance(f, stl.STLAlways):
+        return _stl_always(m, label, f, t, start_robustness_tree)
+    elif isinstance(f, stl.STLNext):
+        return _stl_next(m, label, f, t, start_robustness_tree)
+    elif isinstance(f, stl.STLEventually):
+        return _stl_eventually(m, label, f, t, start_robustness_tree)
+    else:
+        raise Exception("Non exhaustive pattern matching")
 
 
 def add_always_constr(
