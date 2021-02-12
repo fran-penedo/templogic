@@ -81,8 +81,7 @@ class Primitive(ABC, Generic[T]):
 
 
 class LLTSignal(stl.Signal):
-    """Definition of an atomic proposition in LLT: x_j ~ pi, where ~ is <= or >
-    """
+    """Definition of an atomic proposition in LLT: x_j ~ pi, where ~ is <= or >"""
 
     _index: int
     _op: Relation
@@ -151,7 +150,7 @@ class LLTFormulaD1(  # type: ignore # copy issues
     outer: stl.TemporalTerm
 
     def __init__(self, safe: bool, index: int, op: Union[str, Relation]) -> None:
-        """ Creates a depth 1 STL formula.
+        """Creates a depth 1 STL formula.
 
         safe : boolean
                True if the formula has a safety structure (always)
@@ -205,8 +204,7 @@ class LLTFormulaD1(  # type: ignore # copy issues
         self.outer.bounds = (self.outer.bounds[0], value)
 
     def negate(self) -> None:
-        """Reverses the operator of the atomic proposition
-        """
+        """Reverses the operator of the atomic proposition"""
         self.op = self.op.flip()
 
     def copy(self) -> "LLTFormulaD1":
@@ -236,8 +234,7 @@ class LLTFormulaD1(  # type: ignore # copy issues
         self.set_llt_pars((t0, t1, pi))
 
     def set_llt_pars(self, theta: Tuple[float, float, float]) -> None:
-        """ Sets the parameters of a primitive
-        """
+        """Sets the parameters of a primitive"""
         t0, t1, pi = theta
         self.t0 = t0
         self.t1 = t1
@@ -250,8 +247,7 @@ class LLTFormulaD1(  # type: ignore # copy issues
 class LLTFormula(  # type: ignore # copy issues
     stl.STLAnd, Primitive[Tuple[float, float, float, float]]
 ):
-    """A depth 2 STL formula.
-    """
+    """A depth 2 STL formula."""
 
     signal: LLTSignal
     inner: stl.TemporalTerm
@@ -322,8 +318,7 @@ class LLTFormula(  # type: ignore # copy issues
         self.inner.bounds = (self.inner.bounds[0], value)
 
     def negate(self) -> None:
-        """Reverses the operator of the atomic proposition
-        """
+        """Reverses the operator of the atomic proposition"""
         self.op = self.op.flip()
 
     def copy(self) -> "LLTFormula":
@@ -353,8 +348,7 @@ class LLTFormula(  # type: ignore # copy issues
         self.set_llt_pars((t0, t1, t3, pi))
 
     def set_llt_pars(self, theta: Tuple[float, float, float, float]) -> None:
-        """Sets the parameters of a primitive
-        """
+        """Sets the parameters of a primitive"""
         t0, t1, t3, pi = theta
         self.t0 = t0
         self.t1 = t1
@@ -393,7 +387,7 @@ class SimpleModel(stl.STLModel):
         self._lsignal = len(signal[-1])
 
     def getVarByName(self, indices: Tuple[int, float]) -> float:
-        """ Get variables
+        """Get variables
 
         indices : pair of numerics
                   indices[0] represents the name of the signal
@@ -450,8 +444,10 @@ def make_llt_primitives(
     return alw_ev + ev_alw
 
 
-def make_llt_d1_primitives(signals: Sequence[SignalType]) -> Iterable[LLTFormulaD1]:
-    """ Obtains the depth 1 primitives associated with the structure of the signals.
+def make_llt_d1_primitives(
+    signals: Sequence[SignalType], labels: Sequence[int]
+) -> Iterable[LLTFormulaD1]:
+    """Obtains the depth 1 primitives associated with the structure of the signals.
 
     signals : m by n matrix
               Last column should be the sampling times
