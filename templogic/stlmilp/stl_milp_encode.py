@@ -169,7 +169,7 @@ def _stl_always_eventually(
 
     if len(xx) > 0:
         # I'm not gonna bother using the best bounds
-        bounds = map(max, zip(*boundss))  # type: ignore
+        bounds = list(map(max, zip(*boundss)))  # type: ignore
         K = max([abs(b) for b in bounds])
         add = add_min_constr if op == "alw" else add_max_constr
         if start_robustness_tree is not None:
