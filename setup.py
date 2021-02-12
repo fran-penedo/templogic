@@ -5,7 +5,7 @@ config = {
     "url": "",
     "author": "Fran Penedo",
     "author_email": "franp@bu.edu",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "install_requires": ["numpy>=1.16.4", "pyparsing>=2.1.0", "attrs>=19.1.0"],
     "extras_require": {
         "milp": ["gurobipy>=7.0.1"],
