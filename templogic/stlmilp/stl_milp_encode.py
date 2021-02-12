@@ -84,11 +84,17 @@ def _stl_and_or(
     op: str,
     start_robustness_tree: stl.RobustnessTree = None,
 ) -> Tuple[gVar, Tuple[float, float]]:
+    if len(f.args) == 1:
+        if start_robustness_tree is not None:
+            tree: Optional[stl.RobustnessTree] = start_robustness_tree.children[0]
+        else:
+            tree = None
+        return add_stl_constr(m, label, f.args[0], t, tree)
     xx = []
     boundss = []
     for i, ff in enumerate(f.args):
         if start_robustness_tree is not None:
-            tree: Optional[stl.RobustnessTree] = start_robustness_tree.children[i]
+            tree = start_robustness_tree.children[i]
         else:
             tree = None
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), ff, t, tree)
